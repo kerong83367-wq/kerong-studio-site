@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Memory Match Online Free — Kerong Arcade</title>
+<meta name="description" content="Play Memory Match online for free. Flip the cards, find all 8 pairs and finish in as few moves as possible. A quick brain workout for all ages.">
+<link rel="stylesheet" href="games.css">
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="logo" href="games.html">KERONG <span>ARCADE</span></a>
+    <nav class="main">
+      <a href="games.html">All Games</a>
+      <a href="index.html">Kerong Studio</a>
+      <a href="privacy.html">Privacy Policy</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+    <main>
+      <div class="game-head">
+        <div class="crumb"><a href="games.html">All Games</a> / Memory Match</div>
+        <h1>🃏 Memory Match</h1>
+        <p class="lede">Sixteen cards, eight hidden pairs. Flip two at a time, remember what you saw, and clear the board in as few moves as you can.</p>
+      </div>
+
+      <div class="ad-slot ad-leaderboard"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+
+      <div class="stage" style="margin-top:22px;">
+        <div class="hud">
+          <div>Moves: <b id="moves">0</b></div>
+          <div>Pairs: <b id="pairs">0</b>/8</div>
+          <div>⏱ Time: <b id="time">0</b>s</div>
+          <div>🏆 Best: <b id="best">—</b></div>
+        </div>
+        <div class="mem-grid" id="grid"></div>
+        <div class="msg" id="msg">Flip a card to start</div>
+        <div class="controls">
+          <button class="btn" id="newBtn">↻ Shuffle &amp; restart</button>
+        </div>
+      </div>
+
+      <section class="text">
+        <h2>How to play Memory Match</h2>
+        <p>Click or tap any card to flip it over, then flip a second one. If the two pictures match, the pair stays face up. If not, both cards turn back over — try to remember where they were. One "move" is one pair of flips. Finish all 8 pairs to win, and challenge yourself to do it in fewer moves each time.</p>
+        <h2>Tips</h2>
+        <ul>
+          <li>Work through the board in a fixed order so you build a mental map.</li>
+          <li>Say the positions out loud ("rocket, top row, second") — it genuinely helps.</li>
+          <li>Early flips are investments: every card you have seen makes the endgame faster.</li>
+        </ul>
+      </section>
+    </main>
+
+    <aside>
+      <div class="ad-slot ad-box"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+      <div class="side-card">
+        <h4>More games</h4>
+        <ul>
+          <li>🐍 <a href="game-snake.html">Snake</a></li>
+          <li>💣 <a href="game-mines.html">Minesweeper</a></li>
+          <li>🧱 <a href="game-breakout.html">Breakout</a></li>
+          <li>🔢 <a href="game-merge.html">Number Merge</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="site">
+  <div class="wrap">Kerong Arcade by Kerong Studio · <a href="games.html">All Games</a> · <a href="privacy.html">Privacy Policy</a></div>
+</footer>
+
+<script>
+(function(){
+  var ICONS = ['🚀','🍕','🎸','🐱','🌵','🍩','⚽','🎧'];
+  var gridEl = document.getElementById('grid'), movesEl = document.getElementById('moves'),
+      pairsEl = document.getElementById('pairs'), timeEl = document.getElementById('time'),
+      bestEl = document.getElementById('best'), msgEl = document.getElementById('msg');
+  var first = null, lock = false, moves, pairs, seconds, timer = null, started, best = null;
+
+  function shuffle(a){
+    for(var i=a.length-1;i>0;i--){ var j = Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+    return a;
+  }
+  function build(){
+    var deck = shuffle(ICONS.concat(ICONS));
+    gridEl.innerHTML = '';
+    deck.forEach(function(icon){
+      var d = document.createElement('div');
+      d.className = 'mem-card'; d.setAttribute('data-icon', icon);
+      d.innerHTML = '<span class="face">' + icon + '</span>';
+      d.addEventListener('click', function(){ flip(d); });
+      gridEl.appendChild(d);
+    });
+    first = null; lock = false; moves = 0; pairs = 0; seconds = 0; started = false;
+    if(timer){ clearInterval(timer); timer = null; }
+    movesEl.textContent = '0'; pairsEl.textContent = '0'; timeEl.textContent = '0';
+    msgEl.textContent = 'Flip a card to start'; msgEl.className = 'msg';
+  }
+  function flip(card){
+    if(lock || card.classList.contains('open') || card.classList.contains('done')) return;
+    if(!started){
+      started = true;
+      timer = setInterval(function(){ seconds++; timeEl.textContent = seconds; }, 1000);
+    }
+    card.classList.add('open');
+    if(!first){ first = card; return; }
+    moves++; movesEl.textContent = moves;
+    if(first.getAttribute('data-icon') === card.getAttribute('data-icon')){
+      first.classList.add('done'); card.classList.add('done');
+      first = null; pairs++; pairsEl.textContent = pairs;
+      if(pairs === 8){
+        clearInterval(timer); timer = null;
+        if(best === null || moves < best){ best = moves; bestEl.textContent = best; }
+        msgEl.textContent = '🎉 Board cleared in ' + moves + ' moves and ' + seconds + ' seconds!';
+        msgEl.className = 'msg win';
+      }
+    } else {
+      lock = true;
+      var a = first; first = null;
+      setTimeout(function(){ a.classList.remove('open'); card.classList.remove('open'); lock = false; }, 650);
+    }
+  }
+  document.getElementById('newBtn').addEventListener('click', build);
+  build();
+})();
+</script>
+</body>
+</html>

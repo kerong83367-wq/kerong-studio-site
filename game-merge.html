@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Number Merge (2048) Online Free — Kerong Arcade</title>
+<meta name="description" content="Play Number Merge online for free — the addictive 2048 sliding tile puzzle. Merge matching numbers, build bigger tiles and chase the 2048 tile.">
+<link rel="stylesheet" href="games.css">
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="logo" href="games.html">KERONG <span>ARCADE</span></a>
+    <nav class="main">
+      <a href="games.html">All Games</a>
+      <a href="index.html">Kerong Studio</a>
+      <a href="privacy.html">Privacy Policy</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+    <main>
+      <div class="game-head">
+        <div class="crumb"><a href="games.html">All Games</a> / Number Merge</div>
+        <h1>🔢 Number Merge</h1>
+        <p class="lede">The sliding-tile puzzle that ate the internet. Swipe the board, merge two matching numbers into one bigger tile, and try to build the legendary 2048.</p>
+      </div>
+
+      <div class="ad-slot ad-leaderboard"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+
+      <div class="stage" style="margin-top:22px;">
+        <div class="hud">
+          <div>Score: <b id="score">0</b></div>
+          <div>🏆 Best: <b id="best">0</b></div>
+          <div>Biggest tile: <b id="max">2</b></div>
+        </div>
+        <div class="merge-board" id="board"></div>
+        <div class="msg" id="msg">Use arrow keys or swipe to play</div>
+        <div class="controls">
+          <button class="btn" id="newBtn">↻ New game</button>
+        </div>
+        <div class="dpad" id="dpad">
+          <span></span><button data-dir="up">▲</button><span></span>
+          <button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button>
+        </div>
+      </div>
+
+      <section class="text">
+        <h2>How to play Number Merge</h2>
+        <p>Press the arrow keys (or WASD), swipe on a touch screen, or use the on-screen arrows. All tiles slide as far as they can in that direction. When two tiles with the same number collide, they merge into one tile worth double. After every move a new 2 or 4 tile appears in a random empty spot. The game ends when the board is full and no merges are possible — so keep your biggest tile tucked in a corner and build around it.</p>
+        <h2>Tips</h2>
+        <ul>
+          <li>Pick one corner for your biggest tile and never move it away from there.</li>
+          <li>Keep your tiles sorted in descending order along one edge, like a snake.</li>
+          <li>Avoid the direction opposite your build — it drags your big tiles into the open.</li>
+        </ul>
+      </section>
+    </main>
+
+    <aside>
+      <div class="ad-slot ad-box"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+      <div class="side-card">
+        <h4>More games</h4>
+        <ul>
+          <li>🐍 <a href="game-snake.html">Snake</a></li>
+          <li>💣 <a href="game-mines.html">Minesweeper</a></li>
+          <li>🃏 <a href="game-memory.html">Memory Match</a></li>
+          <li>🧱 <a href="game-breakout.html">Breakout</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="site">
+  <div class="wrap">Kerong Arcade by Kerong Studio · <a href="games.html">All Games</a> · <a href="privacy.html">Privacy Policy</a></div>
+</footer>
+
+<script>
+(function(){
+  var boardEl = document.getElementById('board'), scoreEl = document.getElementById('score'),
+      bestEl = document.getElementById('best'), maxEl = document.getElementById('max'),
+      msgEl = document.getElementById('msg');
+  var grid, score, best = 0, won = false, over = false;
+
+  function emptyCells(){
+    var out = [];
+    for(var r=0;r<4;r++) for(var c=0;c<4;c++) if(!grid[r][c]) out.push([r,c]);
+    return out;
+  }
+  function spawn(){
+    var e = emptyCells();
+    if(!e.length) return;
+    var cell = e[Math.floor(Math.random()*e.length)];
+    grid[cell[0]][cell[1]] = Math.random() < 0.9 ? 2 : 4;
+  }
+  function render(){
+    boardEl.innerHTML = '';
+    var max = 0;
+    for(var r=0;r<4;r++) for(var c=0;c<4;c++){
+      var v = grid[r][c];
+      if(v > max) max = v;
+      var d = document.createElement('div');
+      d.className = 'merge-tile' + (v ? ' v' + Math.min(v, 2048) : '');
+      d.textContent = v ? v : '';
+      boardEl.appendChild(d);
+    }
+    scoreEl.textContent = score; bestEl.textContent = best; maxEl.textContent = max || 2;
+  }
+  function slide(row){
+    var arr = row.filter(function(v){ return v; }), gained = 0;
+    for(var i=0;i<arr.length-1;i++){
+      if(arr[i] === arr[i+1]){ arr[i] *= 2; gained += arr[i]; arr.splice(i+1, 1); }
+    }
+    while(arr.length < 4) arr.push(0);
+    return { row: arr, gained: gained };
+  }
+  function move(dirName){
+    if(over) return;
+    var before = JSON.stringify(grid), gained = 0;
+    function line(i){
+      if(dirName === 'left') return grid[i].slice();
+      if(dirName === 'right') return grid[i].slice().reverse();
+      if(dirName === 'up'){ var col = []; for(var r=0;r<4;r++) col.push(grid[r][i]); return col; }
+      var col2 = []; for(var r2=3;r2>=0;r2--) col2.push(grid[r2][i]); return col2;
+    }
+    function put(i, arr){
+      if(dirName === 'left') grid[i] = arr;
+      else if(dirName === 'right') grid[i] = arr.slice().reverse();
+      else if(dirName === 'up'){ for(var r=0;r<4;r++) grid[r][i] = arr[r]; }
+      else { for(var r3=0;r3<4;r3++) grid[3-r3][i] = arr[r3]; }
+    }
+    for(var i=0;i<4;i++){
+      var res = slide(line(i));
+      gained += res.gained;
+      put(i, res.row);
+    }
+    if(JSON.stringify(grid) === before) return;
+    score += gained;
+    if(score > best) best = score;
+    spawn(); render();
+    if(!won && grid.some(function(row){ return row.indexOf(2048) >= 0; })){
+      won = true;
+      msgEl.textContent = '🎉 You built the 2048 tile! Keep going for a bigger score.';
+      msgEl.className = 'msg win';
+    }
+    if(!canMove()){
+      over = true;
+      msgEl.textContent = 'Game over! Final score: ' + score;
+      msgEl.className = 'msg lose';
+    }
+  }
+  function canMove(){
+    if(emptyCells().length) return true;
+    for(var r=0;r<4;r++) for(var c=0;c<4;c++){
+      if(c<3 && grid[r][c] === grid[r][c+1]) return true;
+      if(r<3 && grid[r][c] === grid[r+1][c]) return true;
+    }
+    return false;
+  }
+  function build(){
+    grid = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+    score = 0; won = false; over = false;
+    spawn(); spawn(); render();
+    msgEl.textContent = 'Use arrow keys or swipe to play'; msgEl.className = 'msg';
+  }
+  document.addEventListener('keydown', function(e){
+    var k = e.key.toLowerCase();
+    if(k==='arrowup'||k==='w'){ move('up'); e.preventDefault(); }
+    else if(k==='arrowdown'||k==='s'){ move('down'); e.preventDefault(); }
+    else if(k==='arrowleft'||k==='a'){ move('left'); e.preventDefault(); }
+    else if(k==='arrowright'||k==='d'){ move('right'); e.preventDefault(); }
+  });
+  var tx = 0, ty = 0;
+  boardEl.addEventListener('touchstart', function(e){ tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, {passive:true});
+  boardEl.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if(Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+    if(Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left'); else move(dy > 0 ? 'down' : 'up');
+  }, {passive:true});
+  document.getElementById('dpad').addEventListener('click', function(e){
+    var d = e.target.getAttribute && e.target.getAttribute('data-dir');
+    if(d) move(d);
+  });
+  document.getElementById('newBtn').addEventListener('click', build);
+  build();
+})();
+</script>
+</body>
+</html>

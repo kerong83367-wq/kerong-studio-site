@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Breakout Online Free — Kerong Arcade</title>
+<meta name="description" content="Play Breakout online for free. Bounce the ball off your paddle, smash all the bricks and clear level after level. No download needed.">
+<link rel="stylesheet" href="games.css">
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="logo" href="games.html">KERONG <span>ARCADE</span></a>
+    <nav class="main">
+      <a href="games.html">All Games</a>
+      <a href="index.html">Kerong Studio</a>
+      <a href="privacy.html">Privacy Policy</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+    <main>
+      <div class="game-head">
+        <div class="crumb"><a href="games.html">All Games</a> / Breakout</div>
+        <h1>🧱 Breakout</h1>
+        <p class="lede">The arcade legend. Move the paddle to keep the ball in play and smash every brick. Clear the wall to advance — each level is faster than the last.</p>
+      </div>
+
+      <div class="ad-slot ad-leaderboard"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+
+      <div class="stage" style="margin-top:22px;">
+        <div class="hud">
+          <div>Score: <b id="score">0</b></div>
+          <div>Level: <b id="level">1</b></div>
+          <div>Lives: <b id="lives">❤❤❤</b></div>
+        </div>
+        <canvas class="game" id="board" width="480" height="400"></canvas>
+        <div class="msg" id="msg">Press Start, then click or press Space to launch</div>
+        <div class="controls">
+          <button class="btn" id="startBtn">▶ Start</button>
+          <button class="btn ghost" id="restartBtn">↻ Restart</button>
+        </div>
+      </div>
+
+      <section class="text">
+        <h2>How to play Breakout</h2>
+        <p>Move the paddle with your mouse, by touching and dragging, or with the left and right arrow keys. Click or press Space to launch the ball. Every brick you break scores points; where the ball hits the paddle controls its angle — edge hits send it off at a sharp angle, center hits send it straighter up. You have three lives per game. Clear all the bricks to reach the next level, where the ball moves faster.</p>
+        <h2>Tips</h2>
+        <ul>
+          <li>Open a tunnel to the top early — a ball bouncing above the wall racks up points fast.</li>
+          <li>Stay under the ball's shadow instead of chasing it at the last second.</li>
+          <li>Use paddle edges for sharp angles when you need to reach side bricks.</li>
+        </ul>
+      </section>
+    </main>
+
+    <aside>
+      <div class="ad-slot ad-box"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+      <div class="side-card">
+        <h4>More games</h4>
+        <ul>
+          <li>🐍 <a href="game-snake.html">Snake</a></li>
+          <li>💣 <a href="game-mines.html">Minesweeper</a></li>
+          <li>🃏 <a href="game-memory.html">Memory Match</a></li>
+          <li>🔢 <a href="game-merge.html">Number Merge</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="site">
+  <div class="wrap">Kerong Arcade by Kerong Studio · <a href="games.html">All Games</a> · <a href="privacy.html">Privacy Policy</a></div>
+</footer>
+
+<script>
+(function(){
+  var cv = document.getElementById('board'), ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var scoreEl = document.getElementById('score'), levelEl = document.getElementById('level'),
+      livesEl = document.getElementById('lives'), msgEl = document.getElementById('msg'),
+      startBtn = document.getElementById('startBtn');
+  var ROWS = 5, COLS = 8, BW = 52, BH = 18, GAP = 6, TOP = 46, LEFT = (W - (COLS*BW + (COLS-1)*GAP)) / 2;
+  var COLORS = ['#ff5a5a','#e8a13a','#e8cf4a','#3ecf6f','#4f8cff'];
+  var paddle, ball, bricks, score, level, lives, running = false, launched, raf = null, keys = {};
+
+  function buildBricks(){
+    bricks = [];
+    for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++) bricks.push({ x: LEFT + c*(BW+GAP), y: TOP + r*(BH+GAP), alive:true, color: COLORS[r] });
+  }
+  function resetBall(){
+    ball = { x: W/2, y: H - 42, r: 7, dx: 0, dy: 0 };
+    launched = false;
+  }
+  function reset(full){
+    paddle = { w: 82, h: 11, x: (W-82)/2, speed: 7 };
+    if(full){ score = 0; level = 1; lives = 3; }
+    buildBricks(); resetBall(); updateHud(); draw();
+  }
+  function updateHud(){
+    scoreEl.textContent = score; levelEl.textContent = level;
+    livesEl.textContent = lives > 0 ? new Array(lives+1).join('❤') : '—';
+  }
+  function draw(){
+    ctx.fillStyle = '#0a0e18'; ctx.fillRect(0,0,W,H);
+    bricks.forEach(function(b){
+      if(!b.alive) return;
+      ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, BW, BH);
+    });
+    ctx.fillStyle = '#eef1f8';
+    ctx.fillRect(paddle.x, H - 24, paddle.w, paddle.h);
+    if(!launched){ ball.x = paddle.x + paddle.w/2; ball.y = H - 42; }
+    ctx.fillStyle = '#ffb020';
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+  }
+  function launch(){
+    if(launched || !running) return;
+    launched = true;
+    var base = 3 + (level-1)*0.45;
+    var ang = (Math.random()*0.6 + 0.35) * (Math.random() < 0.5 ? -1 : 1);
+    ball.dx = base * Math.sin(ang) * 1.4;
+    ball.dy = -Math.sqrt(Math.max(1, (base*1.9)*(base*1.9) - ball.dx*ball.dx));
+    msgEl.textContent = ''; msgEl.className = 'msg';
+  }
+  function step(){
+    if(keys.left) paddle.x -= paddle.speed;
+    if(keys.right) paddle.x += paddle.speed;
+    if(paddle.x < 0) paddle.x = 0;
+    if(paddle.x + paddle.w > W) paddle.x = W - paddle.w;
+    if(launched){
+      ball.x += ball.dx; ball.y += ball.dy;
+      if(ball.x - ball.r < 0){ ball.x = ball.r; ball.dx = Math.abs(ball.dx); }
+      if(ball.x + ball.r > W){ ball.x = W - ball.r; ball.dx = -Math.abs(ball.dx); }
+      if(ball.y - ball.r < 0){ ball.y = ball.r; ball.dy = Math.abs(ball.dy); }
+      if(ball.dy > 0 && ball.y + ball.r >= H - 24 && ball.y + ball.r <= H - 24 + paddle.h + 4 &&
+         ball.x >= paddle.x - ball.r && ball.x <= paddle.x + paddle.w + ball.r){
+        var rel = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+        var sp = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
+        var ang = rel * 1.05;
+        ball.dx = sp * Math.sin(ang);
+        ball.dy = -Math.abs(sp * Math.cos(ang));
+        ball.y = H - 24 - ball.r;
+      }
+      for(var i=0;i<bricks.length;i++){
+        var b = bricks[i];
+        if(!b.alive) continue;
+        if(ball.x + ball.r > b.x && ball.x - ball.r < b.x + BW && ball.y + ball.r > b.y && ball.y - ball.r < b.y + BH){
+          b.alive = false; score += 10; updateHud();
+          var fromSide = Math.min(Math.abs(ball.x + ball.r - b.x), Math.abs(ball.x - ball.r - (b.x + BW)));
+          var fromTop = Math.min(Math.abs(ball.y + ball.r - b.y), Math.abs(ball.y - ball.r - (b.y + BH)));
+          if(fromSide < fromTop) ball.dx = -ball.dx; else ball.dy = -ball.dy;
+          break;
+        }
+      }
+      if(bricks.every(function(b){ return !b.alive; })){
+        level++; updateHud();
+        msgEl.textContent = 'Level ' + level + ' — faster! Click or press Space to launch';
+        msgEl.className = 'msg win';
+        buildBricks(); resetBall();
+      }
+      if(ball.y - ball.r > H){
+        lives--; updateHud();
+        if(lives <= 0){
+          running = false;
+          msgEl.textContent = 'Game over! Final score: ' + score;
+          msgEl.className = 'msg lose';
+          startBtn.textContent = '▶ Start';
+        } else {
+          resetBall();
+          msgEl.textContent = 'Ball lost — ' + lives + (lives === 1 ? ' life' : ' lives') + ' left. Click or press Space to launch';
+          msgEl.className = 'msg';
+        }
+      }
+    }
+    draw();
+    if(running) raf = requestAnimationFrame(step);
+  }
+  function startGame(){
+    if(running){
+      running = false;
+      if(raf) cancelAnimationFrame(raf);
+      startBtn.textContent = '▶ Start';
+      msgEl.textContent = 'Paused'; msgEl.className = 'msg';
+      return;
+    }
+    if(lives <= 0) reset(true);
+    running = true;
+    startBtn.textContent = '⏸ Pause';
+    msgEl.textContent = launched ? '' : 'Click or press Space to launch the ball';
+    msgEl.className = 'msg';
+    raf = requestAnimationFrame(step);
+  }
+  function pointerX(e){
+    var rect = cv.getBoundingClientRect();
+    var cx = (e.touches && e.touches.length) ? e.touches[0].clientX : e.clientX;
+    return (cx - rect.left) * (W / rect.width);
+  }
+  cv.addEventListener('mousemove', function(e){ paddle.x = pointerX(e) - paddle.w/2; });
+  cv.addEventListener('touchmove', function(e){ paddle.x = pointerX(e) - paddle.w/2; e.preventDefault(); }, {passive:false});
+  cv.addEventListener('click', launch);
+  document.addEventListener('keydown', function(e){
+    var k = e.key.toLowerCase();
+    if(k === 'arrowleft' || k === 'a'){ keys.left = true; e.preventDefault(); }
+    if(k === 'arrowright' || k === 'd'){ keys.right = true; e.preventDefault(); }
+    if(k === ' '){ if(running) launch(); else startGame(); e.preventDefault(); }
+  });
+  document.addEventListener('keyup', function(e){
+    var k = e.key.toLowerCase();
+    if(k === 'arrowleft' || k === 'a') keys.left = false;
+    if(k === 'arrowright' || k === 'd') keys.right = false;
+  });
+  startBtn.addEventListener('click', startGame);
+  document.getElementById('restartBtn').addEventListener('click', function(){
+    running = false; if(raf) cancelAnimationFrame(raf);
+    reset(true); startBtn.textContent = '▶ Start';
+    msgEl.textContent = 'Press Start, then click or press Space to launch'; msgEl.className = 'msg';
+  });
+  reset(true);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Minesweeper Online Free — Kerong Arcade</title>
+<meta name="description" content="Play Minesweeper online for free. Clear the 9x9 field, flag the 10 hidden mines and beat your best time. No download, works on mobile and desktop.">
+<link rel="stylesheet" href="games.css">
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="logo" href="games.html">KERONG <span>ARCADE</span></a>
+    <nav class="main">
+      <a href="games.html">All Games</a>
+      <a href="index.html">Kerong Studio</a>
+      <a href="privacy.html">Privacy Policy</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+    <main>
+      <div class="game-head">
+        <div class="crumb"><a href="games.html">All Games</a> / Minesweeper</div>
+        <h1>💣 Minesweeper</h1>
+        <p class="lede">Ten mines are hidden in the field. Use the numbers to work out where they are, flag them all, and clear every safe square.</p>
+      </div>
+
+      <div class="ad-slot ad-leaderboard"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+
+      <div class="stage" style="margin-top:22px;">
+        <div class="hud">
+          <div>🚩 Mines left: <b id="left">10</b></div>
+          <div>⏱ Time: <b id="time">0</b>s</div>
+          <div>🏆 Best: <b id="best">—</b></div>
+        </div>
+        <div class="mine-grid" id="grid"></div>
+        <div class="msg" id="msg">Click any square to start</div>
+        <div class="controls">
+          <button class="btn" id="newBtn">🙂 New game</button>
+          <button class="btn ghost" id="modeBtn">Mode: Dig ⛏️</button>
+        </div>
+      </div>
+
+      <section class="text">
+        <h2>How to play Minesweeper</h2>
+        <p>Click a square to reveal it. A number tells you how many mines touch that square (including diagonals). An empty square opens its whole neighborhood automatically. Right-click a square (or switch to Flag mode and tap) to plant a flag where you believe a mine is hiding. Your first click is always safe. You win when every safe square is open; one wrong click on a mine ends the game.</p>
+        <h2>Tips</h2>
+        <ul>
+          <li>A "1" in a corner with only one covered neighbor means that neighbor is a mine.</li>
+          <li>Flag as you deduce — flags protect squares from accidental clicks.</li>
+          <li>When a number already touches enough flags, its other neighbors are safe to open.</li>
+        </ul>
+      </section>
+    </main>
+
+    <aside>
+      <div class="ad-slot ad-box"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+      <div class="side-card">
+        <h4>More games</h4>
+        <ul>
+          <li>🐍 <a href="game-snake.html">Snake</a></li>
+          <li>🃏 <a href="game-memory.html">Memory Match</a></li>
+          <li>🧱 <a href="game-breakout.html">Breakout</a></li>
+          <li>🔢 <a href="game-merge.html">Number Merge</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="site">
+  <div class="wrap">Kerong Arcade by Kerong Studio · <a href="games.html">All Games</a> · <a href="privacy.html">Privacy Policy</a></div>
+</footer>
+
+<script>
+(function(){
+  var N = 9, MINES = 10;
+  var gridEl = document.getElementById('grid'), leftEl = document.getElementById('left'),
+      timeEl = document.getElementById('time'), bestEl = document.getElementById('best'),
+      msgEl = document.getElementById('msg'), modeBtn = document.getElementById('modeBtn');
+  var cells, started, over, won, flags, opened, seconds, timer, flagMode = false, best = null;
+  var COLORS = ['', '#4f8cff', '#3ecf6f', '#ff5a5a', '#b06ce8', '#ffb020', '#39c2c9', '#e8e8e8', '#9aa7c2'];
+
+  function neighbors(i){
+    var r = Math.floor(i/N), c = i%N, out = [];
+    for(var dr=-1; dr<=1; dr++) for(var dc=-1; dc<=1; dc++){
+      if(!dr && !dc) continue;
+      var nr = r+dr, nc = c+dc;
+      if(nr>=0 && nr<N && nc>=0 && nc<N) out.push(nr*N+nc);
+    }
+    return out;
+  }
+  function build(){
+    cells = [];
+    for(var i=0;i<N*N;i++) cells.push({ mine:false, open:false, flag:false, n:0, el:null });
+    gridEl.innerHTML = '';
+    cells.forEach(function(cell, i){
+      var b = document.createElement('button');
+      b.className = 'mine-cell'; b.type = 'button';
+      b.addEventListener('click', function(){ tap(i); });
+      b.addEventListener('contextmenu', function(e){ e.preventDefault(); toggleFlag(i); });
+      cell.el = b; gridEl.appendChild(b);
+    });
+    started = false; over = false; won = false; flags = 0; opened = 0; seconds = 0;
+    stopTimer(); timeEl.textContent = '0'; leftEl.textContent = MINES;
+    msgEl.textContent = 'Click any square to start'; msgEl.className = 'msg';
+    document.getElementById('newBtn').textContent = '🙂 New game';
+  }
+  function plantMines(safe){
+    var banned = {}; banned[safe] = true;
+    neighbors(safe).forEach(function(i){ banned[i] = true; });
+    var placed = 0;
+    while(placed < MINES){
+      var i = Math.floor(Math.random()*N*N);
+      if(cells[i].mine || banned[i]) continue;
+      cells[i].mine = true; placed++;
+    }
+    cells.forEach(function(cell, i){
+      cell.n = neighbors(i).filter(function(j){ return cells[j].mine; }).length;
+    });
+  }
+  function startTimer(){
+    timer = setInterval(function(){ seconds++; timeEl.textContent = seconds; }, 1000);
+  }
+  function stopTimer(){ if(timer){ clearInterval(timer); timer = null; } }
+  function toggleFlag(i){
+    if(over) return;
+    var cell = cells[i];
+    if(cell.open) return;
+    cell.flag = !cell.flag;
+    flags += cell.flag ? 1 : -1;
+    cell.el.textContent = cell.flag ? '🚩' : '';
+    leftEl.textContent = MINES - flags;
+  }
+  function tap(i){
+    if(over) return;
+    if(flagMode){ toggleFlag(i); return; }
+    var cell = cells[i];
+    if(cell.flag || cell.open) return;
+    if(!started){ started = true; plantMines(i); startTimer(); }
+    if(cell.mine){ lose(i); return; }
+    reveal(i);
+    if(opened === N*N - MINES) win();
+  }
+  function reveal(i){
+    var stack = [i];
+    while(stack.length){
+      var j = stack.pop(), cell = cells[j];
+      if(cell.open || cell.flag) continue;
+      cell.open = true; opened++;
+      cell.el.classList.add('open');
+      cell.el.textContent = cell.n ? cell.n : '';
+      cell.el.style.color = COLORS[cell.n] || '';
+      if(cell.n === 0) neighbors(j).forEach(function(k){ if(!cells[k].open) stack.push(k); });
+    }
+  }
+  function lose(hit){
+    over = true; stopTimer();
+    cells.forEach(function(cell){
+      if(cell.mine){ cell.el.textContent = '💣'; cell.el.classList.add('open'); }
+      if(cell.flag && !cell.mine) cell.el.textContent = '❌';
+    });
+    cells[hit].el.classList.add('boom');
+    msgEl.textContent = 'Boom! That was a mine. Try again!'; msgEl.className = 'msg lose';
+    document.getElementById('newBtn').textContent = '😵 New game';
+  }
+  function win(){
+    over = true; won = true; stopTimer();
+    cells.forEach(function(cell){ if(cell.mine && !cell.flag){ cell.flag = true; cell.el.textContent = '🚩'; } });
+    leftEl.textContent = '0';
+    if(best === null || seconds < best){ best = seconds; bestEl.textContent = best + 's'; }
+    msgEl.textContent = '🎉 You cleared the field in ' + seconds + ' seconds!'; msgEl.className = 'msg win';
+    document.getElementById('newBtn').textContent = '😎 New game';
+  }
+  modeBtn.addEventListener('click', function(){
+    flagMode = !flagMode;
+    modeBtn.textContent = flagMode ? 'Mode: Flag 🚩' : 'Mode: Dig ⛏️';
+  });
+  document.getElementById('newBtn').addEventListener('click', build);
+  build();
+})();
+</script>
+</body>
+</html>

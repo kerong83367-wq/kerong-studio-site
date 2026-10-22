@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Snake Online Free — Kerong Arcade</title>
+<meta name="description" content="Play the classic Snake game online for free. Eat apples, grow longer, beat your high score. Works on desktop and mobile, no download needed.">
+<link rel="stylesheet" href="games.css">
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="logo" href="games.html">KERONG <span>ARCADE</span></a>
+    <nav class="main">
+      <a href="games.html">All Games</a>
+      <a href="index.html">Kerong Studio</a>
+      <a href="privacy.html">Privacy Policy</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+    <main>
+      <div class="game-head">
+        <div class="crumb"><a href="games.html">All Games</a> / Snake</div>
+        <h1>🐍 Snake</h1>
+        <p class="lede">The timeless classic. Steer the snake, eat the red apples and grow as long as you can — just don't run into the walls or your own tail.</p>
+      </div>
+
+      <div class="ad-slot ad-leaderboard"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+
+      <div class="stage" style="margin-top:22px;">
+        <div class="hud">
+          <div>Score: <b id="score">0</b></div>
+          <div>Best: <b id="best">0</b></div>
+          <div>Length: <b id="len">3</b></div>
+        </div>
+        <canvas class="game" id="board" width="400" height="400"></canvas>
+        <div class="msg" id="msg">Press Start to play</div>
+        <div class="controls">
+          <button class="btn" id="startBtn">▶ Start</button>
+          <button class="btn ghost" id="restartBtn">↻ Restart</button>
+        </div>
+        <div class="dpad" id="dpad">
+          <span></span><button data-dir="up">▲</button><span></span>
+          <button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button>
+        </div>
+      </div>
+
+      <section class="text">
+        <h2>How to play Snake</h2>
+        <p>Use the arrow keys or WASD on a keyboard, swipe on a touch screen, or tap the on-screen arrows on mobile. Each apple you eat makes the snake one segment longer and adds 10 points. The snake speeds up as it grows, so plan your turns early and use the open space in the middle of the board while you still have it.</p>
+        <h2>Tips</h2>
+        <ul>
+          <li>Stick to the edges when the snake gets long — it keeps escape routes open.</li>
+          <li>Never turn back on yourself: a 180-degree turn ends the game instantly.</li>
+          <li>Short, safe detours beat risky dives across the whole board.</li>
+        </ul>
+      </section>
+    </main>
+
+    <aside>
+      <div class="ad-slot ad-box"><span class="ad-label">Advertisement</span><span class="ad-note">Ad space — coming soon</span></div>
+      <div class="side-card">
+        <h4>More games</h4>
+        <ul>
+          <li>💣 <a href="game-mines.html">Minesweeper</a></li>
+          <li>🃏 <a href="game-memory.html">Memory Match</a></li>
+          <li>🧱 <a href="game-breakout.html">Breakout</a></li>
+          <li>🔢 <a href="game-merge.html">Number Merge</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="site">
+  <div class="wrap">Kerong Arcade by Kerong Studio · <a href="games.html">All Games</a> · <a href="privacy.html">Privacy Policy</a></div>
+</footer>
+
+<script>
+(function(){
+  var cv = document.getElementById('board'), ctx = cv.getContext('2d');
+  var CELL = 20, N = 20;
+  var snake, dir, nextDir, food, score, best = 0, timer = null, speed, alive;
+  var scoreEl = document.getElementById('score'), bestEl = document.getElementById('best'),
+      lenEl = document.getElementById('len'), msgEl = document.getElementById('msg'),
+      startBtn = document.getElementById('startBtn');
+
+  function placeFood(){
+    while(true){
+      var f = { x: Math.floor(Math.random()*N), y: Math.floor(Math.random()*N) };
+      var hit = false;
+      for(var i=0;i<snake.length;i++){ if(snake[i].x===f.x && snake[i].y===f.y){ hit=true; break; } }
+      if(!hit){ food = f; return; }
+    }
+  }
+  function reset(){
+    snake = [{x:9,y:10},{x:8,y:10},{x:7,y:10}];
+    dir = {x:1,y:0}; nextDir = dir; score = 0; speed = 130; alive = true;
+    placeFood(); updateHud(); draw();
+  }
+  function updateHud(){ scoreEl.textContent = score; bestEl.textContent = best; lenEl.textContent = snake.length; }
+  function draw(){
+    ctx.fillStyle = '#0a0e18'; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    for(var i=1;i<N;i++){
+      ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,cv.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(cv.width,i*CELL); ctx.stroke();
+    }
+    ctx.fillStyle = '#ff5a5a';
+    ctx.beginPath(); ctx.arc(food.x*CELL+10, food.y*CELL+10, 7, 0, Math.PI*2); ctx.fill();
+    for(var j=0;j<snake.length;j++){
+      ctx.fillStyle = j===0 ? '#ffb020' : '#3ecf6f';
+      ctx.fillRect(snake[j].x*CELL+1, snake[j].y*CELL+1, CELL-2, CELL-2);
+    }
+  }
+  function step(){
+    dir = nextDir;
+    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    if(head.x<0 || head.y<0 || head.x>=N || head.y>=N){ return gameOver(); }
+    for(var i=0;i<snake.length;i++){ if(snake[i].x===head.x && snake[i].y===head.y){ return gameOver(); } }
+    snake.unshift(head);
+    if(head.x===food.x && head.y===food.y){
+      score += 10;
+      if(score > best) best = score;
+      placeFood();
+      if(speed > 65){ speed -= 3; restartTimer(); }
+    } else { snake.pop(); }
+    updateHud(); draw();
+  }
+  function restartTimer(){ if(timer){ clearInterval(timer); timer = setInterval(step, speed); } }
+  function gameOver(){
+    alive = false; stopGame();
+    msgEl.textContent = 'Game over! Score: ' + score;
+    msgEl.className = 'msg lose';
+    startBtn.textContent = '▶ Start';
+  }
+  function startGame(){
+    if(timer){ stopGame(); startBtn.textContent = '▶ Start'; msgEl.textContent = 'Paused'; msgEl.className='msg'; return; }
+    if(!alive) reset();
+    msgEl.textContent = ''; msgEl.className = 'msg';
+    timer = setInterval(step, speed);
+    startBtn.textContent = '⏸ Pause';
+  }
+  function stopGame(){ if(timer){ clearInterval(timer); timer = null; } }
+  function setDir(x,y){
+    if(dir.x === -x && dir.y === -y) return;
+    if(dir.x === x && dir.y === y) return;
+    nextDir = {x:x, y:y};
+  }
+  document.addEventListener('keydown', function(e){
+    var k = e.key.toLowerCase();
+    if(k==='arrowup'||k==='w'){ setDir(0,-1); e.preventDefault(); }
+    else if(k==='arrowdown'||k==='s'){ setDir(0,1); e.preventDefault(); }
+    else if(k==='arrowleft'||k==='a'){ setDir(-1,0); e.preventDefault(); }
+    else if(k==='arrowright'||k==='d'){ setDir(1,0); e.preventDefault(); }
+    else if(k===' '){ startGame(); e.preventDefault(); }
+  });
+  var tx=0, ty=0;
+  cv.addEventListener('touchstart', function(e){ tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, {passive:true});
+  cv.addEventListener('touchmove', function(e){
+    var dx = e.touches[0].clientX - tx, dy = e.touches[0].clientY - ty;
+    if(Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+    if(Math.abs(dx) > Math.abs(dy)) setDir(dx>0?1:-1, 0); else setDir(0, dy>0?1:-1);
+    tx = e.touches[0].clientX; ty = e.touches[0].clientY;
+    e.preventDefault();
+  }, {passive:false});
+  document.getElementById('dpad').addEventListener('click', function(e){
+    var d = e.target.getAttribute && e.target.getAttribute('data-dir');
+    if(d==='up') setDir(0,-1); else if(d==='down') setDir(0,1);
+    else if(d==='left') setDir(-1,0); else if(d==='right') setDir(1,0);
+  });
+  startBtn.addEventListener('click', startGame);
+  document.getElementById('restartBtn').addEventListener('click', function(){ stopGame(); reset(); startBtn.textContent='▶ Start'; msgEl.textContent='Press Start to play'; msgEl.className='msg'; });
+  reset();
+})();
+</script>
+</body>
+</html>
