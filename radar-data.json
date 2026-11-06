@@ -6,11 +6,11 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-06T20:58:54.837331+08:00",
+  "lastUpdatedAt": "2026-11-07T00:57:55.999722+08:00",
   "equity": 150444.76368556,
-  "equityUpdatedAt": "2026-11-06T20:58:54.837331+08:00",
+  "equityUpdatedAt": "2026-11-07T00:57:55.999722+08:00",
   "marginBalance": 150444.76368556,
-  "marginBalanceUpdatedAt": "2026-11-06T20:58:54.837331+08:00",
+  "marginBalanceUpdatedAt": "2026-11-07T00:57:55.999722+08:00",
   "equityStale": false,
   "effectiveLeverage": 0.0,
   "valuationComplete": true,
@@ -3526,9 +3526,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-06T12:55:48.396Z",
+    "updatedAt": "2026-11-06T16:53:14.608Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-06T20:59:11.697993+08:00",
+  "fetchedAt": "2026-11-07T00:58:02.407832+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
