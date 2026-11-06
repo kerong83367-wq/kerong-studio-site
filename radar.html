@@ -129,23 +129,23 @@
 
   <div class="statrow">
     <span>交易天数 <b>157</b></span>
-    <span>跟单人数 <b>1,000/1,000</b></span>
-    <span>总跟单人数 <b>2,027</b></span>
-    <span>模拟跟单人数 <b>45,125</b></span>
-    <span>历史关闭项目 <a href="#tabs" onclick="showTab('history');return false;">9</a></span>
+    <span>跟单人数 <b id="srCopiers">1,000/1,000</b></span>
+    <span>总跟单人数 <b id="srTotalCopiers">2,027</b></span>
+    <span>模拟跟单人数 <b id="srMock">45,125</b></span>
+    <span>历史关闭项目 <a href="#tabs" id="srClosed" onclick="showTab('history');return false;">9</a></span>
   </div>
 
   <div class="grid">
     <div class="card">
       <h2>项目表现 <span class="right">30 天 ▾</span></h2>
-      <div class="kv"><span class="k">收益率</span><span class="v green">+169.57%</span></div>
-      <div class="kv"><span class="k">盈亏</span><span class="v green">+1,037,318.24</span></div>
-      <div class="kv"><span class="k">跟单者盈亏</span><span class="v green">+2,895,994.88 USDT</span></div>
-      <div class="kv"><span class="k">夏普比率</span><span class="v">2.57</span></div>
-      <div class="kv"><span class="k">最大回撤</span><span class="v">48.83%</span></div>
-      <div class="kv"><span class="k">胜率</span><span class="v">69.23%</span></div>
-      <div class="kv"><span class="k">获胜仓位</span><span class="v">9</span></div>
-      <div class="kv"><span class="k">总仓位数量</span><span class="v">13</span></div>
+      <div class="kv"><span class="k">收益率</span><span class="v green" id="stRoi">+169.57%</span></div>
+      <div class="kv"><span class="k">盈亏</span><span class="v green" id="stPnl">+1,037,318.24</span></div>
+      <div class="kv"><span class="k">跟单者盈亏</span><span class="v green" id="stCopierPnl">+2,895,994.88 USDT</span></div>
+      <div class="kv"><span class="k">夏普比率</span><span class="v" id="stSharpe">2.57</span></div>
+      <div class="kv"><span class="k">最大回撤</span><span class="v" id="stMdd">48.83%</span></div>
+      <div class="kv"><span class="k">胜率</span><span class="v" id="stWinRate">69.23%</span></div>
+      <div class="kv"><span class="k">获胜仓位</span><span class="v" id="stWins">9</span></div>
+      <div class="kv"><span class="k">总仓位数量</span><span class="v" id="stTrades">13</span></div>
     </div>
 
     <div class="card">
@@ -156,8 +156,8 @@
 
     <div class="card">
       <h2>带单员总览</h2>
-      <div class="kv"><span class="k">资产管理规模</span><span class="v">4,969,898.51 USDT</span></div>
-      <div class="kv"><span class="k">分润比例</span><span class="v">10.00%</span></div>
+      <div class="kv"><span class="k">资产管理规模</span><span class="v" id="ovAum">4,969,898.51 USDT</span></div>
+      <div class="kv"><span class="k">分润比例</span><span class="v" id="ovShare">10.00%</span></div>
       <div class="kv"><span class="k">带单保证金余额</span><span class="v" id="ovEquity">152,311.19 USDT</span></div>
       <div class="kv"><span class="k">最小跟单金额</span><span class="v">300/300 USDT</span></div>
     </div>
@@ -168,7 +168,7 @@
         <svg id="donut" width="180" height="180" viewBox="0 0 180 180"></svg>
         <ul class="legend" id="donutLegend"></ul>
       </div>
-      <p class="chartnote">*数据每 1–2 小时刷新一次。</p>
+      <p class="chartnote">*2026-11-06 币安页面截图数据，仅供参考。</p>
     </div>
   </div>
 
@@ -207,7 +207,7 @@
   </div>
 
   <footer>
-    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 60 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3–4 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、资产偏好为 2026-11-06 币安页面截图数据。<br>
+    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 60 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3–4 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经 Kopyon 接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
     本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
@@ -317,6 +317,27 @@ function render(d) {
   pnlEl.textContent = fmtSigned(d.unrealizedPnl || 0) + ' U';
   pnlEl.className = (d.unrealizedPnl || 0) > 0 ? 'green' : (d.unrealizedPnl || 0) < 0 ? 'red' : '';
   if (d.marginBalance) document.getElementById('ovEquity').textContent = fmt(d.marginBalance) + ' USDT';
+
+  // 30 天表现数据（币安官方口径，经 Kopyon 同步，约 10 分钟刷新一次）
+  const st = d.stats;
+  if (st) {
+    const set = (id, txt, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = txt; if (cls) el.className = cls; };
+    const green = v => (v > 0 ? 'v green' : v < 0 ? 'v red' : 'v');
+    set('stRoi', fmtSigned(st.roi * 100) + '%', green(st.roi));
+    set('stPnl', fmtSigned(st.pnl), green(st.pnl));
+    set('stCopierPnl', fmtSigned(st.copierPnl) + ' USDT', green(st.copierPnl));
+    set('stSharpe', fmt(st.sharpeRatio), 'v');
+    set('stMdd', fmt(st.maxDrawdown * 100) + '%', 'v');
+    set('stWinRate', fmt(st.winRate * 100) + '%', 'v');
+    set('stWins', String(st.wins), 'v');
+    set('stTrades', String(st.trades), 'v');
+    set('ovAum', fmt(st.aum) + ' USDT', 'v');
+    set('ovShare', fmt(st.profitShare * 100) + '%', 'v');
+    set('srCopiers', fmt(st.copiers, 0) + '/' + fmt(st.maxCopiers, 0));
+    set('srTotalCopiers', fmt(st.totalCopiers, 0));
+    set('srMock', fmt(st.mockCopiers, 0));
+    set('srClosed', String(st.trades));
+  }
 
   const pw = document.getElementById('pane-positions');
   if (!d.positions || d.positions.length === 0) {

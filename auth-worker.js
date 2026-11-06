@@ -154,6 +154,47 @@ async function handleLogout(req, env) {
 const UPSTREAM = 'https://coin.911quant.com/api/public/traders/2';
 const RADAR_CACHE_SECONDS = 30;
 let radarCache = { at: 0, data: null };
+// ---- 30 天表现数据（Kopyon 镜像币安官方，约 10 分钟刷新一次）----
+// 911quant 只有持仓/权益，没有收益率、盈亏、跟单者盈亏这些官方口径
+// 数字，所以表现数据单独走 Kopyon performance + traderProfile。
+// 目前不用 key 也能调；万一以后要 key，注册免费 key 后在下面加
+// X-API-KEY 请求头即可。10 分钟缓存，失败时用上一次的数据兜底。
+const KOPYON_BASE = 'https://api.kopyon.com/v5/binance-copy-trading';
+const TRADER_ID = '5075281354358777856';
+const STATS_CACHE_SECONDS = 600;
+let statsCache = { at: 0, data: null };
+async function fetchStats() {
+  const now = Date.now();
+  if (statsCache.data && now - statsCache.at < STATS_CACHE_SECONDS * 1000) return statsCache.data;
+  try {
+    const [perfR, profR] = await Promise.all([
+      fetch(`${KOPYON_BASE}/performance?traderId=${TRADER_ID}&period=30D`, {
+        headers: { 'User-Agent': 'kerong-radar/1.0' }, signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`${KOPYON_BASE}/traderProfile?traderId=${TRADER_ID}`, {
+        headers: { 'User-Agent': 'kerong-radar/1.0' }, signal: AbortSignal.timeout(10000),
+      }),
+    ]);
+    if (!perfR.ok || !profR.ok) return statsCache.data;
+    const perf = (await perfR.json()).data;
+    const prof = (await profR.json()).data;
+    if (!perf || perf.roi === undefined || !prof) return statsCache.data;
+    const sd = prof.sourceDetails || {};
+    const stats = {
+      roi: perf.roi, pnl: perf.pnl, maxDrawdown: perf.maxDrawdown,
+      copierPnl: perf.copierPnl, winRate: perf.winRate, wins: perf.wins,
+      trades: perf.trades, sharpeRatio: perf.sharpeRatio,
+      aum: prof.aum, copiers: prof.copiers, maxCopiers: prof.maxCopiers,
+      totalCopiers: prof.totalCopiers, mockCopiers: sd.mockCopiers,
+      marginBalance: sd.marginBalance, profitShare: prof.profitShare,
+      statsFetchedAt: new Date(now + 8 * 3600 * 1000).toISOString().replace('Z', '+08:00'),
+    };
+    statsCache = { at: now, data: stats };
+    return stats;
+  } catch (e) {
+    return statsCache.data;
+  }
+}
 async function handleRadar(req) {
   const now = Date.now();
   if (radarCache.data && now - radarCache.at < RADAR_CACHE_SECONDS * 1000) {
@@ -170,6 +211,8 @@ async function handleRadar(req) {
     d.fetchedAt = new Date(now + 8 * 3600 * 1000).toISOString().replace('Z', '+08:00');
     d.source = UPSTREAM;
     d.live = true;
+    const stats = await fetchStats();
+    if (stats) d.stats = stats;
     radarCache = { at: now, data: d };
     return json(req, d);
   } catch (e) {
