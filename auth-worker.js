@@ -147,15 +147,47 @@ async function handleLogout(req, env) {
   return json(req, { ok: true });
 }
 
+// ---- 直连上游：GET /api/radar ----
+// 页面每 60 秒调它拿最新持仓，不再依赖 GitHub Actions 定时快照
+// （定时任务从未自动跑过）。上游是公开接口，服务端直抓不怕 CORS。
+// 同一个 Worker 实例内缓存 30 秒，避免多人同时刷新时反复抓上游。
+const UPSTREAM = 'https://coin.911quant.com/api/public/traders/2';
+const RADAR_CACHE_SECONDS = 30;
+let radarCache = { at: 0, data: null };
+async function handleRadar(req) {
+  const now = Date.now();
+  if (radarCache.data && now - radarCache.at < RADAR_CACHE_SECONDS * 1000) {
+    return json(req, radarCache.data);
+  }
+  try {
+    const r = await fetch(UPSTREAM, {
+      headers: { 'User-Agent': 'kerong-radar/1.0' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) throw new Error('upstream HTTP ' + r.status);
+    const d = await r.json();
+    if (d.id !== 2 || d.name !== '熬鹰资本') throw new Error('upstream data mismatch');
+    d.fetchedAt = new Date(now + 8 * 3600 * 1000).toISOString().replace('Z', '+08:00');
+    d.source = UPSTREAM;
+    d.live = true;
+    radarCache = { at: now, data: d };
+    return json(req, d);
+  } catch (e) {
+    return json(req, { ok: false, error: '上游暂不可用，请稍后再试。' }, 502);
+  }
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders(req) });
     }
+    const url = new URL(req.url);
+    // 直连接口不依赖 KV，放前面
+    if (req.method === 'GET' && url.pathname === '/api/radar') return handleRadar(req);
     if (!env.AUTH_KV) {
       return json(req, { ok: false, error: '后端 KV 未绑定，请在 Worker 设置里绑定 AUTH_KV。' }, 500);
     }
-    const url = new URL(req.url);
     try {
       if (req.method === 'POST' && url.pathname === '/api/register') return handleRegister(req, env);
       if (req.method === 'POST' && url.pathname === '/api/login') return handleLogin(req, env);

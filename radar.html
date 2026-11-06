@@ -178,7 +178,7 @@
     <span><span class="lab">持仓总价值 </span><b id="lbNotional">—</b></span>
     <span><span class="lab">实际杠杆 </span><b id="lbLev">—</b></span>
     <span><span class="lab">当前浮盈亏 </span><b id="lbPnl">—</b></span>
-    <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · 本站每 5 分钟快照，页面每 60 秒刷新</span>
+    <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · <span id="liveNote">直连上游 · 每 60 秒刷新</span></span>
   </div>
   <div class="err" id="errBox">刚才那次刷新没拿到新数据，显示的是上一次快照，稍后会自动再试。</div>
 
@@ -207,7 +207,7 @@
   </div>
 
   <footer>
-    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站每 5 分钟抓一次公开成交记录，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。开仓动作一般在上游 2–3 分钟后检出，再加本站 5 分钟快照间隔，看到新动作最晚约 8 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、资产偏好为 2026-11-06 币安页面截图数据。<br>
+    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 60 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3–4 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、资产偏好为 2026-11-06 币安页面截图数据。<br>
     本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
@@ -309,7 +309,7 @@ function render(d) {
   pill.textContent = count > 0 ? '持有 ' + count + ' 个仓位' : '当前空仓';
   pill.className = count > 0 ? 'pill-live' : 'pill-empty';
   document.getElementById('updatedAt').textContent = fmtTime(d.lastUpdatedAt);
-  document.getElementById('snapshotAt').textContent = '本站快照 ' + fmtTime(d.fetchedAt) + '（上游同步 ' + fmtTime(d.lastUpdatedAt) + '）';
+  document.getElementById('snapshotAt').textContent = (d.live ? '直连上游 ' : '本站快照 ') + fmtTime(d.fetchedAt) + '（上游同步 ' + fmtTime(d.lastUpdatedAt) + '）';
   document.getElementById('lbEquity').textContent = d.marginBalance ? fmt(d.marginBalance) + ' U' : '—';
   document.getElementById('lbNotional').textContent = fmt(d.notional || 0) + ' U';
   document.getElementById('lbLev').textContent = d.effectiveLeverage ? fmt(d.effectiveLeverage) + ' ×' : '—';
@@ -336,11 +336,23 @@ function render(d) {
     '<ul class="events">' + evs.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
 }
 async function load() {
+  // 先走 Worker 直连上游（页面每 60 秒刷新），直连失败再读 5 分钟快照文件
+  try {
+    const r = await fetch(AUTH_API + '/api/radar', {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.ok === false || d.id !== 2) throw new Error('bad live data');
+    document.getElementById('errBox').style.display = 'none';
+    render(d);
+    document.getElementById('liveNote').textContent = '直连上游 · 每 60 秒刷新';
+    return;
+  } catch (e) { /* 直连失败，读快照 */ }
   try {
     const r = await fetch(DATA_URL + '?t=' + Date.now(), {cache: 'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     document.getElementById('errBox').style.display = 'none';
     render(await r.json());
+    document.getElementById('liveNote').textContent = '直连失败，读 5 分钟快照 · 页面每 60 秒刷新';
   } catch (e) { document.getElementById('errBox').style.display = 'block'; }
 }
 
