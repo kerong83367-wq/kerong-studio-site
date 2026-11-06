@@ -319,25 +319,57 @@ function render(d) {
   if (d.marginBalance) document.getElementById('ovEquity').textContent = fmt(d.marginBalance) + ' USDT';
 
   // 30 天表现数据（币安官方口径，经 Kopyon 同步，约 10 分钟刷新一次）
-  const st = d.stats;
-  if (st) {
-    const set = (id, txt, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = txt; if (cls) el.className = cls; };
-    const green = v => (v > 0 ? 'v green' : v < 0 ? 'v red' : 'v');
-    set('stRoi', fmtSigned(st.roi * 100) + '%', green(st.roi));
-    set('stPnl', fmtSigned(st.pnl), green(st.pnl));
-    set('stCopierPnl', fmtSigned(st.copierPnl) + ' USDT', green(st.copierPnl));
-    set('stSharpe', fmt(st.sharpeRatio), 'v');
-    set('stMdd', fmt(st.maxDrawdown * 100) + '%', 'v');
-    set('stWinRate', fmt(st.winRate * 100) + '%', 'v');
-    set('stWins', String(st.wins), 'v');
-    set('stTrades', String(st.trades), 'v');
-    set('ovAum', fmt(st.aum) + ' USDT', 'v');
-    set('ovShare', fmt(st.profitShare * 100) + '%', 'v');
-    set('srCopiers', fmt(st.copiers, 0) + '/' + fmt(st.maxCopiers, 0));
-    set('srTotalCopiers', fmt(st.totalCopiers, 0));
-    set('srMock', fmt(st.mockCopiers, 0));
-    set('srClosed', String(st.trades));
-  }
+  if (d.stats) renderStats(d.stats);
+  else loadStatsFromBrowser();
+}
+
+// 表现数据优先走 Worker（/api/radar 里的 stats）；Worker 拿不到时
+// （Kopyon 对机房共享出口 IP 有匿名限流），页面直接从浏览器调
+// Kopyon 拿——Kopyon 开了 CORS，浏览器直调没问题，且每个访客
+// 用自己的 IP，各自的限额足够 10 分钟刷新一次。
+let statsLoadedAt = 0;
+function renderStats(st) {
+  const set = (id, txt, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = txt; if (cls) el.className = cls; };
+  const green = v => (v > 0 ? 'v green' : v < 0 ? 'v red' : 'v');
+  set('stRoi', fmtSigned(st.roi * 100) + '%', green(st.roi));
+  set('stPnl', fmtSigned(st.pnl), green(st.pnl));
+  set('stCopierPnl', fmtSigned(st.copierPnl) + ' USDT', green(st.copierPnl));
+  set('stSharpe', fmt(st.sharpeRatio), 'v');
+  set('stMdd', fmt(st.maxDrawdown * 100) + '%', 'v');
+  set('stWinRate', fmt(st.winRate * 100) + '%', 'v');
+  set('stWins', String(st.wins), 'v');
+  set('stTrades', String(st.trades), 'v');
+  set('ovAum', fmt(st.aum) + ' USDT', 'v');
+  set('ovShare', fmt(st.profitShare * 100) + '%', 'v');
+  set('srCopiers', fmt(st.copiers, 0) + '/' + fmt(st.maxCopiers, 0));
+  set('srTotalCopiers', fmt(st.totalCopiers, 0));
+  set('srMock', fmt(st.mockCopiers, 0));
+  set('srClosed', String(st.trades));
+}
+async function loadStatsFromBrowser() {
+  const now = Date.now();
+  if (now - statsLoadedAt < 10 * 60 * 1000) return;
+  try {
+    const [perfR, profR] = await Promise.all([
+      fetch('https://api.kopyon.com/v5/binance-copy-trading/performance?traderId=5075281354358777856&period=30D'),
+      fetch('https://api.kopyon.com/v5/binance-copy-trading/traderProfile?traderId=5075281354358777856'),
+    ]);
+    if (!perfR.ok || !profR.ok) return;
+    const perf = (await perfR.json()).data;
+    const prof = (await profR.json()).data;
+    if (!perf || perf.roi === undefined || !prof) return;
+    const sd = prof.sourceDetails || {};
+    renderStats({
+      roi: perf.roi, pnl: perf.pnl, maxDrawdown: perf.maxDrawdown,
+      copierPnl: perf.copierPnl, winRate: perf.winRate, wins: perf.wins,
+      trades: perf.trades, sharpeRatio: perf.sharpeRatio,
+      aum: prof.aum, copiers: prof.copiers, maxCopiers: prof.maxCopiers,
+      totalCopiers: prof.totalCopiers, mockCopiers: sd.mockCopiers,
+      marginBalance: sd.marginBalance, profitShare: prof.profitShare,
+    });
+    statsLoadedAt = now;
+  } catch (e) { /* 静默失败，保留页面原值 */ }
+}
 
   const pw = document.getElementById('pane-positions');
   if (!d.positions || d.positions.length === 0) {
