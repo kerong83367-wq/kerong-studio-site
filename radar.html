@@ -3,144 +3,425 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>熬鹰资本持仓雷达 · 只盯一位交易员</title>
-<meta name="description" content="只盯币安带单组合 5075281354358777856（熬鹰资本）：当前持仓、浮盈亏与最近开平仓动态，每 5 分钟更新一次。数据由公开成交记录反推，仅供研究参考，不构成投资建议。">
+<title>熬鹰资本 · 合约跟单 | 持仓雷达</title>
+<meta name="description" content="熬鹰资本（币安合约带单组合 5075281354358777856）：30 天收益率、项目表现、资产偏好、当前持仓与最近开平仓动态。数据由公开成交记录反推，仅供研究参考，不构成投资建议。">
 <style>
-  :root { --bg:#0f1420; --card:#182036; --line:#232c49; --text:#eef1f8; --muted:#9aa7c2; --accent:#ffb020; --accent2:#4f8cff; --green:#2fbf71; --red:#f25555; }
+  :root { --bg:#0b0e11; --panel:#1e2329; --panel2:#181a20; --line:#2b3139; --text:#eaecef; --muted:#848e9c; --green:#0ecb81; --red:#f6465d; --yellow:#f0b90b; --blue:#4f8cff; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px 40px; }
-  header { padding: 48px 0 24px; text-align:center; }
-  .logo { font-size: 14px; letter-spacing: 3px; color: var(--accent); text-transform: uppercase; }
-  h1 { font-size: 34px; line-height:1.25; margin: 14px 0 10px; }
-  h1 span { color: var(--accent); }
-  .sub { color: var(--muted); font-size: 16px; max-width: 640px; margin: 0 auto; }
-  .sync { margin-top: 16px; font-size: 14px; color: var(--muted); }
-  .sync b { color: var(--text); font-weight: 600; }
-  .pill { display:inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
-  .pill.live { background: rgba(47,191,113,.16); color: var(--green); }
-  .pill.empty { background: rgba(154,167,194,.16); color: var(--muted); }
-  section { padding: 20px 0; }
-  h2 { font-size: 22px; margin-bottom: 14px; }
-  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-  .card { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 20px; }
-  .card .label { color: var(--muted); font-size: 14px; }
-  .card .value { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .card .note { color: var(--muted); font-size: 13px; margin-top: 2px; }
-  .pos { color: var(--green); } .neg { color: var(--red); }
-  table { width: 100%; border-collapse: collapse; background: var(--card); border:1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 15px; }
-  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-  th { color: var(--muted); font-size: 13px; font-weight: 600; }
-  tr:last-child td { border-bottom: none; }
-  .long { color: var(--green); font-weight: 700; } .short { color: var(--red); font-weight: 700; }
-  .empty-box { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 28px 20px; text-align:center; color: var(--muted); }
-  .events { list-style: none; }
-  .events li { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; display:flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; font-size: 15px; }
-  .events .time { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .events .act { font-weight: 700; }
-  .events .sym { font-weight: 700; }
-  .events .detail { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .links a { color: var(--accent2); text-decoration: none; margin-right: 16px; font-size: 15px; }
-  footer { border-top: 1px solid var(--line); padding: 24px 0 8px; color: var(--muted); font-size: 13px; }
-  .err { display:none; background: rgba(242,85,85,.12); border:1px solid rgba(242,85,85,.4); color: #ffb3b3; border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-top: 14px; }
-  @media (max-width: 640px) { h1 { font-size: 26px; } .card .value { font-size: 22px; } th:nth-child(5), td:nth-child(5) { display:none; } }
+  a { color:inherit; text-decoration:none; }
+  .topbar { border-bottom:1px solid var(--line); background:var(--panel2); }
+  .topbar .in { max-width:1120px; margin:0 auto; padding:10px 20px; display:flex; align-items:center; gap:18px; }
+  .brand { font-weight:800; font-size:17px; letter-spacing:1px; }
+  .brand span { color:var(--yellow); }
+  .topnav { color:var(--muted); font-size:14px; display:flex; gap:16px; }
+  .topnav a:hover { color:var(--text); }
+  .topright { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:14px; }
+  .btn { display:inline-block; padding:8px 18px; border-radius:6px; font-weight:600; font-size:14px; border:1px solid transparent; cursor:pointer; background:#2b3139; color:var(--text); }
+  .btn:hover { filter:brightness(1.15); }
+  .btn-yellow { background:var(--yellow); color:#141414; }
+  .btn-ghost { background:transparent; border-color:var(--line); color:var(--text); }
+  .userchip { color:var(--text); font-size:14px; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 20px 40px; }
+  .crumbs { padding:18px 0 4px; color:var(--muted); font-size:14px; display:flex; align-items:center; gap:10px; }
+  .crumbs .pill { border:1px solid var(--line); border-radius:6px; padding:2px 10px; font-size:13px; color:var(--text); }
+  .crumbs .spacer { margin-left:auto; display:flex; gap:14px; align-items:center; }
+  .star { color:var(--text); font-size:14px; }
+  .thead { display:flex; gap:18px; align-items:flex-start; padding:18px 0 8px; flex-wrap:wrap; }
+  .avatar { width:64px; height:64px; border-radius:50%; background:#2b3139; display:flex; align-items:center; justify-content:center; font-size:34px; flex:none; }
+  .tinfo h1 { font-size:24px; line-height:1.3; display:flex; align-items:center; gap:8px; }
+  .verified { color:var(--yellow); font-size:18px; }
+  .bio { color:var(--muted); font-size:14px; margin-top:4px; }
+  .bio a { color:var(--blue); }
+  .tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .tag { background:#2b3139; color:var(--yellow); font-size:13px; padding:3px 10px; border-radius:6px; }
+  .tag.gray { color:var(--text); }
+  .thead .actions { margin-left:auto; display:flex; flex-direction:column; gap:10px; }
+  .thead .actions .btn { min-width:170px; text-align:center; padding:10px 18px; }
+  .statrow { display:flex; flex-wrap:wrap; gap:8px 28px; color:var(--muted); font-size:14px; padding:12px 0 20px; border-bottom:1px solid var(--line); }
+  .statrow b { color:var(--text); font-weight:600; }
+  .statrow a { color:var(--text); border-bottom:1px solid var(--line); }
+  .grid { display:grid; grid-template-columns:1fr 2fr; gap:16px; padding-top:20px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+  .card h2 { font-size:17px; margin-bottom:14px; display:flex; align-items:center; }
+  .card h2 .right { margin-left:auto; font-size:13px; color:var(--muted); font-weight:400; }
+  .kv { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .kv:last-child { border-bottom:none; }
+  .kv .k { color:var(--muted); border-bottom:1px dotted var(--line); }
+  .kv .v { font-weight:600; font-variant-numeric:tabular-nums; }
+  .green { color:var(--green); } .red { color:var(--red); }
+  .charttabs { display:flex; gap:6px; margin-bottom:10px; }
+  .charttabs button { background:transparent; border:1px solid var(--line); color:var(--muted); padding:5px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
+  .charttabs button.on { background:#2b3139; color:var(--text); }
+  .chartwrap { width:100%; height:230px; }
+  .chartnote { color:var(--muted); font-size:12px; margin-top:8px; }
+  .donutwrap { display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .legend { list-style:none; font-size:14px; flex:1; min-width:220px; }
+  .legend li { display:flex; align-items:center; gap:8px; padding:5px 0; }
+  .dot { width:10px; height:10px; border-radius:2px; flex:none; }
+  .legend .pct { margin-left:auto; font-variant-numeric:tabular-nums; }
+  .livebar { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 22px; display:flex; flex-wrap:wrap; gap:10px 30px; align-items:center; font-size:14px; }
+  .livebar .lab { color:var(--muted); }
+  .livebar b { font-variant-numeric:tabular-nums; }
+  .pill-live { background:rgba(14,203,129,.14); color:var(--green); padding:2px 10px; border-radius:999px; font-weight:700; font-size:13px; }
+  .pill-empty { background:rgba(132,142,156,.14); color:var(--muted); padding:2px 10px; border-radius:999px; font-weight:700; font-size:13px; }
+  .tabs { display:flex; gap:26px; border-bottom:1px solid var(--line); margin-top:26px; font-size:15px; }
+  .tabs button { background:none; border:none; color:var(--muted); padding:10px 2px; cursor:pointer; font-size:15px; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs button.on { color:var(--text); border-bottom-color:var(--yellow); font-weight:600; }
+  .tabpane { padding:18px 2px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:11px 12px; text-align:left; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th { color:var(--muted); font-size:13px; font-weight:600; }
+  .long { color:var(--green); font-weight:700; } .short { color:var(--red); font-weight:700; }
+  .empty-box { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:26px 20px; text-align:center; color:var(--muted); }
+  .events { list-style:none; }
+  .events li { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:9px; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; font-size:14px; }
+  .events .time { color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
+  .events .detail { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .err { display:none; background:rgba(246,70,93,.12); border:1px solid rgba(246,70,93,.4); color:#ffb3b3; border-radius:10px; padding:10px 14px; font-size:14px; margin-top:14px; }
+  footer { border-top:1px solid var(--line); margin-top:30px; padding:22px 0 8px; color:var(--muted); font-size:13px; }
+  footer a { color:var(--blue); }
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .modal-bg.open { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--line); border-radius:14px; width:100%; max-width:400px; padding:26px; }
+  .modal h3 { font-size:19px; margin-bottom:4px; }
+  .modal .msub { color:var(--muted); font-size:13px; margin-bottom:16px; }
+  .modal label { display:block; font-size:13px; color:var(--muted); margin:12px 0 5px; }
+  .modal input { width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--text); padding:11px 12px; font-size:15px; outline:none; }
+  .modal input:focus { border-color:var(--yellow); }
+  .modal .btn { width:100%; padding:12px; margin-top:18px; font-size:15px; }
+  .modal .switch { text-align:center; font-size:13px; color:var(--muted); margin-top:14px; }
+  .modal .switch a { color:var(--yellow); cursor:pointer; }
+  .modal .merr { display:none; background:rgba(246,70,93,.12); border:1px solid rgba(246,70,93,.4); color:#ffb3b3; border-radius:8px; padding:9px 12px; font-size:13px; margin-top:12px; }
+  .modal .mok { display:none; background:rgba(14,203,129,.12); border:1px solid rgba(14,203,129,.4); color:#8ff5c8; border-radius:8px; padding:9px 12px; font-size:13px; margin-top:12px; }
+  .modal .close { float:right; background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; }
+  @media (max-width: 760px) { .grid { grid-template-columns:1fr; } .thead .actions { margin-left:0; width:100%; } .thead .actions .btn { flex:1; } .topnav { display:none; } }
 </style>
 </head>
 <body>
+<div class="topbar"><div class="in">
+  <a class="brand" href="https://xiaoxiaoke.ccwu.cc/">持仓<span>雷达</span></a>
+  <nav class="topnav"><a href="https://xiaoxiaoke.ccwu.cc/radar.html">合约跟单</a><a href="https://coin.911quant.com/" target="_blank" rel="noopener">交易员榜单</a><a href="https://xiaoxiaoke.ccwu.cc/">Kerong Studio</a></nav>
+  <div class="topright" id="authArea">
+    <button class="btn btn-ghost" id="loginBtn">登录</button>
+    <button class="btn btn-yellow" id="registerBtn">注册</button>
+  </div>
+</div></div>
+
 <div class="wrap">
-  <header>
-    <div class="logo">持仓雷达 · 单交易员版</div>
-    <h1>熬鹰资本 <span>当前持仓</span></h1>
-    <p class="sub">只盯一位交易员：币安合约带单组合 5075281354358777856。持仓由公开成交记录反推，浮盈亏为估算值。</p>
-    <p class="sync">状态 <span class="pill live" id="statusPill">同步中…</span> &nbsp;·&nbsp; 数据更新于 <b id="updatedAt">—</b> &nbsp;·&nbsp; 每 5 分钟自动快照，页面每 60 秒刷新</p>
-    <div class="err" id="errBox">刚才那次刷新没拿到新数据，显示的是上一次快照，稍后会自动再试。</div>
-  </header>
+  <div class="crumbs">
+    <span>合约跟单</span><span class="pill">公域</span>
+    <span class="spacer"><span class="star">☆ 28,738</span><span title="分享">⤴</span></span>
+  </div>
 
-  <section>
-    <div class="grid">
-      <div class="card"><div class="label">保证金余额</div><div class="value" id="equity">—</div><div class="note">上游未公开时显示 —</div></div>
-      <div class="card"><div class="label">持仓总价值</div><div class="value" id="notional">—</div><div class="note" id="posCount">当前持仓 — 个</div></div>
-      <div class="card"><div class="label">实际杠杆</div><div class="value" id="leverage">—</div><div class="note">持仓总价值 / 保证金余额</div></div>
-      <div class="card"><div class="label">当前浮盈亏（实时估算）</div><div class="value" id="pnl">—</div><div class="note">未计手续费及资金费</div></div>
+  <div class="thead">
+    <div class="avatar">🐼</div>
+    <div class="tinfo">
+      <h1>熬鹰资本 <span class="verified">✔</span></h1>
+      <p class="bio">X @thankUcrypto 赚了就都提出去，超高杠杆，不建议跟 &nbsp;<a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">查看译文</a></p>
+      <div class="tags"><span class="tag">10倍-20倍杠杆</span><span class="tag gray">TradFi</span><span class="tag gray">API交易</span><span class="tag gray">全场最佳</span><span class="tag gray">赚钱机器</span></div>
     </div>
-  </section>
+    <div class="actions">
+      <a class="btn" id="followBtn" href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">开启跟单</a>
+      <a class="btn" href="https://coin.911quant.com/" target="_blank" rel="noopener">对比</a>
+    </div>
+  </div>
 
-  <section>
-    <h2>当前持仓</h2>
-    <div id="positionsWrap"></div>
-  </section>
+  <div class="statrow">
+    <span>交易天数 <b>157</b></span>
+    <span>跟单人数 <b>1,000/1,000</b></span>
+    <span>总跟单人数 <b>2,027</b></span>
+    <span>模拟跟单人数 <b>45,125</b></span>
+    <span>历史关闭项目 <a href="#tabs" onclick="showTab('history');return false;">9</a></span>
+  </div>
 
-  <section>
-    <h2>最近开平仓动态</h2>
-    <ul class="events" id="eventsList"><li>加载中…</li></ul>
-  </section>
+  <div class="grid">
+    <div class="card">
+      <h2>项目表现 <span class="right">30 天 ▾</span></h2>
+      <div class="kv"><span class="k">收益率</span><span class="v green">+169.57%</span></div>
+      <div class="kv"><span class="k">盈亏</span><span class="v green">+1,037,318.24</span></div>
+      <div class="kv"><span class="k">跟单者盈亏</span><span class="v green">+2,895,994.88 USDT</span></div>
+      <div class="kv"><span class="k">夏普比率</span><span class="v">2.57</span></div>
+      <div class="kv"><span class="k">最大回撤</span><span class="v">48.83%</span></div>
+      <div class="kv"><span class="k">胜率</span><span class="v">69.23%</span></div>
+      <div class="kv"><span class="k">获胜仓位</span><span class="v">9</span></div>
+      <div class="kv"><span class="k">总仓位数量</span><span class="v">13</span></div>
+    </div>
 
-  <section class="links">
-    <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页 ↗</a>
-    <a href="https://coin.911quant.com/" target="_blank" rel="noopener">数据源：持仓雷达 ↗</a>
-    <a href="https://xiaoxiaoke.ccwu.cc/" target="_blank" rel="noopener">回 Kerong Studio 首页 ↗</a>
-  </section>
+    <div class="card">
+      <h2><span class="charttabs"><button class="on" id="tabRoi" onclick="setChart('roi')">收益率</button><button id="tabPnl" onclick="setChart('pnl')">盈亏</button></span><span class="right">30 天 ▾</span></h2>
+      <div class="chartwrap"><svg id="chart" width="100%" height="100%" viewBox="0 0 640 230" preserveAspectRatio="none"></svg></div>
+      <p class="chartnote">曲线按 2026-11-06 币安页面截图走势还原，仅供参考；最新 30 天数据以币安官方页为准。</p>
+    </div>
+
+    <div class="card">
+      <h2>带单员总览</h2>
+      <div class="kv"><span class="k">资产管理规模</span><span class="v">4,969,898.51 USDT</span></div>
+      <div class="kv"><span class="k">分润比例</span><span class="v">10.00%</span></div>
+      <div class="kv"><span class="k">带单保证金余额</span><span class="v" id="ovEquity">152,311.19 USDT</span></div>
+      <div class="kv"><span class="k">最小跟单金额</span><span class="v">300/300 USDT</span></div>
+    </div>
+
+    <div class="card">
+      <h2>资产偏好 <span class="right">30 天 ▾</span></h2>
+      <div class="donutwrap">
+        <svg id="donut" width="180" height="180" viewBox="0 0 180 180"></svg>
+        <ul class="legend" id="donutLegend"></ul>
+      </div>
+      <p class="chartnote">*数据每 1–2 小时刷新一次。</p>
+    </div>
+  </div>
+
+  <div class="livebar">
+    <span class="pill-live" id="statusPill">同步中…</span>
+    <span><span class="lab">保证金 </span><b id="lbEquity">—</b></span>
+    <span><span class="lab">持仓总价值 </span><b id="lbNotional">—</b></span>
+    <span><span class="lab">实际杠杆 </span><b id="lbLev">—</b></span>
+    <span><span class="lab">当前浮盈亏 </span><b id="lbPnl">—</b></span>
+    <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · 本站每 5 分钟快照，页面每 60 秒刷新</span>
+  </div>
+  <div class="err" id="errBox">刚才那次刷新没拿到新数据，显示的是上一次快照，稍后会自动再试。</div>
+
+  <div class="tabs" id="tabs">
+    <button class="on" data-tab="positions" onclick="showTab('positions')">仓位</button>
+    <button data-tab="history" onclick="showTab('history')">仓位历史记录</button>
+    <button data-tab="events" onclick="showTab('events')">最新操作记录</button>
+    <button data-tab="transfers" onclick="showTab('transfers')">转账记录</button>
+    <button data-tab="followers" onclick="showTab('followers')">跟单者</button>
+  </div>
+  <div class="tabpane" id="pane-positions"></div>
+  <div class="tabpane" id="pane-history" style="display:none"></div>
+  <div class="tabpane" id="pane-events" style="display:none"></div>
+  <div class="tabpane" id="pane-transfers" style="display:none">
+    <div class="empty-box">上游未公开转账记录。</div>
+  </div>
+  <div class="tabpane" id="pane-followers" style="display:none">
+    <div class="card">
+      <div class="kv"><span class="k">跟单人数</span><span class="v">1,000 / 1,000（已满）</span></div>
+      <div class="kv"><span class="k">总跟单人数</span><span class="v">2,027</span></div>
+      <div class="kv"><span class="k">模拟跟单人数</span><span class="v">45,125</span></div>
+      <div class="kv"><span class="k">最小跟单金额</span><span class="v">300 USDT</span></div>
+      <div class="kv"><span class="k">分润比例</span><span class="v">10.00%</span></div>
+      <div class="kv"><span class="k">跟单者总盈亏（30 天）</span><span class="v green">+2,895,994.88 USDT</span></div>
+    </div>
+  </div>
 
   <footer>
-    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站每 5 分钟抓一次公开成交记录，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。开仓动作一般在 2–3 分钟后被上游检出，再加本站 5 分钟快照间隔，看到新动作最晚约 8 分钟。标记价与浮盈亏来自上游估算，仅供研究参考，不构成投资建议。交易有风险，请独立判断。
-    <br>快照文件：<span id="snapshotAt">—</span>
+    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站每 5 分钟抓一次公开成交记录，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。开仓动作一般在上游 2–3 分钟后检出，再加本站 5 分钟快照间隔，看到新动作最晚约 8 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、资产偏好为 2026-11-06 币安页面截图数据。<br>
+    本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
+    快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
 </div>
+
+<div class="modal-bg" id="authModal"><div class="modal">
+  <button class="close" onclick="closeAuth()">×</button>
+  <h3 id="authTitle">注册账号</h3>
+  <p class="msub">注册本站账号，用于收藏交易员与接收开单提醒（后续功能）。密码仅保存加盐哈希，不以明文存储。</p>
+  <div id="regFields">
+    <label>用户名</label><input id="regUser" placeholder="2–20 个字符，字母、数字、下划线或中文" autocomplete="username">
+    <label>邮箱</label><input id="regEmail" placeholder="you@example.com" autocomplete="email">
+    <label>密码</label><input id="regPass" type="password" placeholder="至少 8 位" autocomplete="new-password">
+    <label>确认密码</label><input id="regPass2" type="password" placeholder="再输一次" autocomplete="new-password">
+  </div>
+  <div id="loginFields" style="display:none">
+    <label>用户名或邮箱</label><input id="loginAccount" placeholder="用户名或邮箱" autocomplete="username">
+    <label>密码</label><input id="loginPass" type="password" placeholder="密码" autocomplete="current-password">
+  </div>
+  <div class="merr" id="authErr"></div>
+  <div class="mok" id="authOk"></div>
+  <button class="btn btn-yellow" id="authSubmit" onclick="submitAuth()">注册</button>
+  <p class="switch" id="authSwitch">已有账号？<a onclick="setAuthMode('login')">去登录</a></p>
+</div></div>
+
 <script>
 const DATA_URL = 'radar-data.json';
+const AUTH_API = 'https://radar-auth.ddtdd.workers.dev';
 const ACTION_LABEL = { OPEN_LONG:'开多', ADD_LONG:'加多', REDUCE_LONG:'减多', CLOSE_LONG:'平多', OPEN_SHORT:'开空', ADD_SHORT:'加空', REDUCE_SHORT:'减空', CLOSE_SHORT:'平空' };
 const fmt = (n, d=2) => (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtSigned = (n, d=2) => (n === null || n === undefined || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n, d);
 const fmtTime = (s) => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? s : d.toLocaleString('zh-CN', {hour12:false}); };
 const sideText = (sym, side) => sym.replace(/USDT$/, '') + (side === 'LONG' ? '多' : side === 'SHORT' ? '空' : '');
+let lastData = null, chartMode = 'roi';
 
+/* ---- 收益率曲线（按截图走势还原） ---- */
+const ROI_SERIES = [[25],[35],[15],[45],[25],[50],[45],[40],[12],[55],[20],[35],[80],[110],[90],[100],[95],[10],[15],[120],[169.57]];
+const X_LABELS = ['10-08','10-13','10-18','10-23','10-28','11-02'];
+function drawChart() {
+  const svg = document.getElementById('chart');
+  const W = 640, H = 230, PL = 34, PR = 8, PT = 10, PB = 24;
+  const maxV = 200;
+  const vals = ROI_SERIES.map(p => chartMode === 'roi' ? p[0] : p[0] / 169.57 * 1037318.24);
+  const maxShow = chartMode === 'roi' ? 200 : 1200000;
+  const y = v => PT + (H - PT - PB) * (1 - v / maxShow);
+  const x = i => PL + (W - PL - PR) * i / (vals.length - 1);
+  let grid = '';
+  (chartMode === 'roi' ? [0,50,100,150,200] : [0,300000,600000,900000,1200000]).forEach(v => {
+    const yy = y(v);
+    grid += '<line x1="' + PL + '" y1="' + yy + '" x2="' + (W - PR) + '" y2="' + yy + '" stroke="#2b3139" stroke-width="1"/><text x="' + (PL - 6) + '" y="' + (yy + 4) + '" fill="#848e9c" font-size="11" text-anchor="end">' + (chartMode === 'roi' ? v + '%' : (v/10000) + '万') + '</text>';
+  });
+  X_LABELS.forEach((lb, i) => {
+    const xx = PL + (W - PL - PR) * i / (X_LABELS.length - 1);
+    grid += '<text x="' + xx + '" y="' + (H - 6) + '" fill="#848e9c" font-size="11" text-anchor="middle">' + lb + '</text>';
+  });
+  const pts = vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  const area = PL + ',' + y(0) + ' ' + pts + ' ' + x(vals.length - 1).toFixed(1) + ',' + y(0);
+  svg.innerHTML = grid +
+    '<polygon points="' + area + '" fill="rgba(14,203,129,.12)"/>' +
+    '<polyline points="' + pts + '" fill="none" stroke="#0ecb81" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<circle cx="' + x(vals.length - 1) + '" cy="' + y(vals[vals.length - 1]) + '" r="3.5" fill="#0ecb81"/>';
+  document.getElementById('tabRoi').className = chartMode === 'roi' ? 'on' : '';
+  document.getElementById('tabPnl').className = chartMode === 'pnl' ? 'on' : '';
+}
+function setChart(m) { chartMode = m; drawChart(); }
+
+/* ---- 资产偏好环形图 ---- */
+const ALLOC = [
+  ['ETH', 66.7816, '#2d7ff9'], ['BTC', 10.67, '#f0b90b'], ['SNDK', 6.99, '#7dd3fc'],
+  ['MU', 6.59, '#9aa7c2'], ['ZEC', 4.16, '#f472b6'], ['HYPE', 3.67, '#2fbf71'], ['CRCL', 1.14, '#a78bfa']
+];
+function drawDonut() {
+  const svg = document.getElementById('donut');
+  const R = 70, C = 2 * Math.PI * R, cx = 90, cy = 90;
+  let off = 0, html = '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="#2b3139" stroke-width="26"/>';
+  ALLOC.forEach(([name, pct, color]) => {
+    const len = C * pct / 100;
+    html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + color + '" stroke-width="26" stroke-dasharray="' + len.toFixed(1) + ' ' + (C - len).toFixed(1) + '" stroke-dashoffset="' + (-off).toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')"/>';
+    off += len;
+  });
+  svg.innerHTML = html;
+  document.getElementById('donutLegend').innerHTML = ALLOC.map(([name, pct, color]) =>
+    '<li><span class="dot" style="background:' + color + '"></span>' + name + '<span class="pct">' + pct + '%</span></li>').join('');
+}
+
+/* ---- 页签 ---- */
+function showTab(name) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  ['positions','history','events','transfers','followers'].forEach(n => {
+    document.getElementById('pane-' + n).style.display = n === name ? '' : 'none';
+  });
+}
+
+/* ---- 实时数据 ---- */
 function render(d) {
-  const pill = document.getElementById('statusPill');
+  lastData = d;
   const count = d.positionCount || 0;
+  const pill = document.getElementById('statusPill');
   pill.textContent = count > 0 ? '持有 ' + count + ' 个仓位' : '当前空仓';
-  pill.className = 'pill ' + (count > 0 ? 'live' : 'empty');
+  pill.className = count > 0 ? 'pill-live' : 'pill-empty';
   document.getElementById('updatedAt').textContent = fmtTime(d.lastUpdatedAt);
   document.getElementById('snapshotAt').textContent = '本站快照 ' + fmtTime(d.fetchedAt) + '（上游同步 ' + fmtTime(d.lastUpdatedAt) + '）';
-  document.getElementById('equity').textContent = (d.marginBalance ? fmt(d.marginBalance) + ' U' : '—');
-  document.getElementById('notional').textContent = fmt(d.notional || 0) + ' U';
-  document.getElementById('posCount').textContent = '当前持仓 ' + count + ' 个';
-  document.getElementById('leverage').textContent = d.effectiveLeverage ? fmt(d.effectiveLeverage) + ' ×' : '—';
-  const pnlEl = document.getElementById('pnl');
+  document.getElementById('lbEquity').textContent = d.marginBalance ? fmt(d.marginBalance) + ' U' : '—';
+  document.getElementById('lbNotional').textContent = fmt(d.notional || 0) + ' U';
+  document.getElementById('lbLev').textContent = d.effectiveLeverage ? fmt(d.effectiveLeverage) + ' ×' : '—';
+  const pnlEl = document.getElementById('lbPnl');
   pnlEl.textContent = fmtSigned(d.unrealizedPnl || 0) + ' U';
-  pnlEl.className = 'value ' + ((d.unrealizedPnl || 0) > 0 ? 'pos' : (d.unrealizedPnl || 0) < 0 ? 'neg' : '');
+  pnlEl.className = (d.unrealizedPnl || 0) > 0 ? 'green' : (d.unrealizedPnl || 0) < 0 ? 'red' : '';
+  if (d.marginBalance) document.getElementById('ovEquity').textContent = fmt(d.marginBalance) + ' USDT';
 
-  const wrap = document.getElementById('positionsWrap');
+  const pw = document.getElementById('pane-positions');
   if (!d.positions || d.positions.length === 0) {
-    wrap.innerHTML = '<div class="empty-box">当前空仓，可查看下方最近动态与历史仓位。</div>';
+    pw.innerHTML = '<div class="empty-box">当前空仓，可查看仓位历史记录与最新操作记录。</div>';
   } else {
-    wrap.innerHTML = '<table><thead><tr><th>币种 / 方向</th><th>数量</th><th>持仓价值</th><th>开仓均价</th><th>标记价</th><th>盈亏</th></tr></thead><tbody>' +
-      d.positions.map(p => '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.quantity, p.quantity < 10 ? 3 : 2) + ' ' + (p.symbol.replace(/USDT$/, '')) + '</td><td>' + fmt(p.notional) + ' U</td><td>' + fmt(p.entryPrice) + ' U</td><td>' + fmt(p.markPrice) + ' U</td><td class="' + (p.unrealizedPnl > 0 ? 'pos' : p.unrealizedPnl < 0 ? 'neg' : '') + '">' + fmtSigned(p.unrealizedPnl) + ' U</td></tr>').join('') +
+    pw.innerHTML = '<table><thead><tr><th>币种 / 方向</th><th>数量</th><th>持仓价值</th><th>开仓均价</th><th>标记价</th><th>盈亏</th></tr></thead><tbody>' +
+      d.positions.map(p => '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.quantity, p.quantity < 10 ? 3 : 2) + ' ' + p.symbol.replace(/USDT$/, '') + '</td><td>' + fmt(p.notional) + ' U</td><td>' + fmt(p.entryPrice) + ' U</td><td>' + fmt(p.markPrice) + ' U</td><td class="' + (p.unrealizedPnl > 0 ? 'green' : p.unrealizedPnl < 0 ? 'red' : '') + '">' + fmtSigned(p.unrealizedPnl) + ' U</td></tr>').join('') +
       '</tbody></table>';
   }
 
-  const list = document.getElementById('eventsList');
-  const evs = (d.events || []).slice(0, 10);
-  if (evs.length === 0) { list.innerHTML = '<li>暂无动态记录。</li>'; }
-  else {
-    list.innerHTML = evs.map(e => {
-      const label = ACTION_LABEL[e.action] || e.action;
-      const cls = /LONG/.test(e.action) ? 'long' : 'short';
-      return '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="act ' + cls + '">' + label + '</span><span class="sym">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>';
-    }).join('');
-  }
-}
+  const closes = (d.events || []).filter(e => /CLOSE|REDUCE/.test(e.action)).slice(0, 10);
+  document.getElementById('pane-history').innerHTML = closes.length === 0 ? '<div class="empty-box">暂无平仓记录。</div>' :
+    '<ul class="events">' + closes.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
 
+  const evs = (d.events || []).slice(0, 15);
+  document.getElementById('pane-events').innerHTML = evs.length === 0 ? '<div class="empty-box">暂无动态记录。</div>' :
+    '<ul class="events">' + evs.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
+}
 async function load() {
   try {
     const r = await fetch(DATA_URL + '?t=' + Date.now(), {cache: 'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
     document.getElementById('errBox').style.display = 'none';
-    render(d);
+    render(await r.json());
+  } catch (e) { document.getElementById('errBox').style.display = 'block'; }
+}
+
+/* ---- 注册 / 登录（本站账号，后端见 auth-worker.js） ---- */
+let authMode = 'register';
+function openAuth(mode) { setAuthMode(mode); document.getElementById('authModal').classList.add('open'); }
+function closeAuth() { document.getElementById('authModal').classList.remove('open'); }
+function setAuthMode(mode) {
+  authMode = mode;
+  document.getElementById('authTitle').textContent = mode === 'register' ? '注册账号' : '登录';
+  document.getElementById('regFields').style.display = mode === 'register' ? '' : 'none';
+  document.getElementById('loginFields').style.display = mode === 'login' ? '' : 'none';
+  document.getElementById('authSubmit').textContent = mode === 'register' ? '注册' : '登录';
+  document.getElementById('authSwitch').innerHTML = mode === 'register' ? '已有账号？<a onclick="setAuthMode(\'login\')">去登录</a>' : '还没有账号？<a onclick="setAuthMode(\'register\')">去注册</a>';
+  hideAuthMsg();
+}
+function showAuthErr(t) { const e = document.getElementById('authErr'); e.textContent = t; e.style.display = 'block'; document.getElementById('authOk').style.display = 'none'; }
+function showAuthOk(t) { const e = document.getElementById('authOk'); e.textContent = t; e.style.display = 'block'; document.getElementById('authErr').style.display = 'none'; }
+function hideAuthMsg() { document.getElementById('authErr').style.display = 'none'; document.getElementById('authOk').style.display = 'none'; }
+async function authFetch(path, body) {
+  const r = await fetch(AUTH_API + path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  return r.json().catch(() => ({ok: false, error: '注册服务暂不可用，请稍后再试。'}));
+}
+async function submitAuth() {
+  hideAuthMsg();
+  try {
+    if (authMode === 'register') {
+      const username = document.getElementById('regUser').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const pass = document.getElementById('regPass').value;
+      const pass2 = document.getElementById('regPass2').value;
+      if (!username || !email || !pass) return showAuthErr('请把用户名、邮箱、密码都填上。');
+      if (pass.length < 8) return showAuthErr('密码至少 8 位。');
+      if (pass !== pass2) return showAuthErr('两次输入的密码不一致。');
+      const res = await authFetch('/api/register', {username, email, password: pass});
+      if (!res.ok) return showAuthErr(res.error || '注册失败，请稍后再试。');
+      localStorage.setItem('radar_token', res.token);
+      showAuthOk('注册成功，已登录。');
+      setTimeout(() => { closeAuth(); refreshAuthArea(); }, 800);
+    } else {
+      const account = document.getElementById('loginAccount').value.trim();
+      const password = document.getElementById('loginPass').value;
+      if (!account || !password) return showAuthErr('请输入用户名或邮箱、密码。');
+      const res = await authFetch('/api/login', {account, password});
+      if (!res.ok) return showAuthErr(res.error || '登录失败，请检查账号密码。');
+      localStorage.setItem('radar_token', res.token);
+      showAuthOk('登录成功。');
+      setTimeout(() => { closeAuth(); refreshAuthArea(); }, 800);
+    }
+  } catch (e) { showAuthErr('注册服务暂不可用（后端未部署或网络不通），请稍后再试。'); }
+}
+async function refreshAuthArea() {
+  const token = localStorage.getItem('radar_token');
+  const area = document.getElementById('authArea');
+  if (!token) {
+    area.innerHTML = '<button class="btn btn-ghost" id="loginBtn">登录</button><button class="btn btn-yellow" id="registerBtn">注册</button>';
+    bindAuthButtons();
+    return;
+  }
+  try {
+    const r = await fetch(AUTH_API + '/api/me', {headers: {'Authorization': 'Bearer ' + token}});
+    const res = await r.json();
+    if (!res.ok) throw new Error();
+    area.innerHTML = '<span class="userchip">你好，' + res.username + '</span><button class="btn btn-ghost" id="logoutBtn">退出</button>';
+    document.getElementById('logoutBtn').onclick = () => { localStorage.removeItem('radar_token'); refreshAuthArea(); };
   } catch (e) {
-    document.getElementById('errBox').style.display = 'block';
+    localStorage.removeItem('radar_token');
+    area.innerHTML = '<button class="btn btn-ghost" id="loginBtn">登录</button><button class="btn btn-yellow" id="registerBtn">注册</button>';
+    bindAuthButtons();
   }
 }
+function bindAuthButtons() {
+  document.getElementById('loginBtn').onclick = () => openAuth('login');
+  document.getElementById('registerBtn').onclick = () => openAuth('register');
+}
+document.getElementById('authModal').addEventListener('click', e => { if (e.target.id === 'authModal') closeAuth(); });
+
+drawChart();
+drawDonut();
+bindAuthButtons();
+refreshAuthArea();
 load();
 setInterval(load, 60000);
 </script>
