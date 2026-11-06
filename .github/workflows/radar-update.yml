@@ -1,0 +1,40 @@
+name: Update radar data
+
+# 每 5 分钟抓一次 911quant 公开接口（熬鹰资本，trader id 2），
+# 把快照写进 radar-data.json 并提交。页面是纯静态站，同源读这个
+# JSON 就行，不用服务器，也不怕浏览器 CORS 拦截。
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch trader snapshot
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, datetime
+          url = "https://coin.911quant.com/api/public/traders/2"
+          req = urllib.request.Request(url, headers={"User-Agent": "kerong-radar/1.0"})
+          with urllib.request.urlopen(req, timeout=20) as r:
+              d = json.load(r)
+          assert d.get("id") == 2 and d.get("name") == "熬鹰资本", d
+          d["fetchedAt"] = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
+          d["source"] = "https://coin.911quant.com/api/public/traders/2"
+          with open("radar-data.json", "w", encoding="utf-8") as f:
+              json.dump(d, f, ensure_ascii=False, indent=2)
+          print("positions:", d.get("positionCount"), "notional:", d.get("notional"), "pnl:", d.get("unrealizedPnl"))
+          PY
+      - name: Commit if changed
+        run: |
+          git config user.name "kerong-radar"
+          git config user.email "kerong83367@gmail.com"
+          git add radar-data.json
+          git diff --cached --quiet || git commit -m "radar: update snapshot"
+          git push
