@@ -207,7 +207,7 @@
   </div>
 
   <footer>
-    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 60 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3–4 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经 Kopyon 接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
+    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 60 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3–4 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
     本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
@@ -318,9 +318,8 @@ function render(d) {
   pnlEl.className = (d.unrealizedPnl || 0) > 0 ? 'green' : (d.unrealizedPnl || 0) < 0 ? 'red' : '';
   if (d.marginBalance) document.getElementById('ovEquity').textContent = fmt(d.marginBalance) + ' USDT';
 
-  // 30 天表现数据（币安官方口径，经 Kopyon 同步，约 10 分钟刷新一次）
+  // 30 天表现数据（币安官方口径，由 Worker 从币安官方接口同步，约 10 分钟刷新一次）
   if (d.stats) renderStats(d.stats);
-  else loadStatsFromBrowser();
 
   const pw = document.getElementById('pane-positions');
   if (!d.positions || d.positions.length === 0) {
@@ -340,11 +339,7 @@ function render(d) {
     '<ul class="events">' + evs.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
 }
 
-// 表现数据优先走 Worker（/api/radar 里的 stats）；Worker 拿不到时
-// （Kopyon 对机房共享出口 IP 有匿名限流），页面直接从浏览器调
-// Kopyon 拿——Kopyon 开了 CORS，浏览器直调没问题，且每个访客
-// 用自己的 IP，各自的限额足够 10 分钟刷新一次。
-let statsLoadedAt = 0;
+// 30 天表现数据渲染：字段缺失时不覆盖页面写死值
 function renderStats(st) {
   const set = (id, txt, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = txt; if (cls) el.className = cls; };
   const green = v => (v > 0 ? 'v green' : v < 0 ? 'v red' : 'v');
@@ -356,39 +351,13 @@ function renderStats(st) {
   set('stWinRate', fmt(st.winRate * 100) + '%', 'v');
   set('stWins', String(st.wins), 'v');
   set('stTrades', String(st.trades), 'v');
-  set('ovAum', fmt(st.aum) + ' USDT', 'v');
-  set('ovShare', fmt(st.profitShare * 100) + '%', 'v');
-  set('srCopiers', fmt(st.copiers, 0) + '/' + fmt(st.maxCopiers, 0));
-  set('srTotalCopiers', fmt(st.totalCopiers, 0));
-  set('srMock', fmt(st.mockCopiers, 0));
+  if (st.aum !== undefined) set('ovAum', fmt(st.aum) + ' USDT', 'v');
+  if (st.profitShare !== undefined) set('ovShare', fmt(st.profitShare * 100) + '%', 'v');
+  if (st.copiers !== undefined) set('srCopiers', fmt(st.copiers, 0) + '/' + fmt(st.maxCopiers, 0));
+  if (st.totalCopiers !== undefined) set('srTotalCopiers', fmt(st.totalCopiers, 0));
+  if (st.mockCopiers !== undefined) set('srMock', fmt(st.mockCopiers, 0));
   set('srClosed', String(st.trades));
 }
-
-async function loadStatsFromBrowser() {
-  const now = Date.now();
-  if (now - statsLoadedAt < 10 * 60 * 1000) return;
-  try {
-    const [perfR, profR] = await Promise.all([
-      fetch('https://api.kopyon.com/v5/binance-copy-trading/performance?traderId=5075281354358777856&period=30D'),
-      fetch('https://api.kopyon.com/v5/binance-copy-trading/traderProfile?traderId=5075281354358777856'),
-    ]);
-    if (!perfR.ok || !profR.ok) return;
-    const perf = (await perfR.json()).data;
-    const prof = (await profR.json()).data;
-    if (!perf || perf.roi === undefined || !prof) return;
-    const sd = prof.sourceDetails || {};
-    renderStats({
-      roi: perf.roi, pnl: perf.pnl, maxDrawdown: perf.maxDrawdown,
-      copierPnl: perf.copierPnl, winRate: perf.winRate, wins: perf.wins,
-      trades: perf.trades, sharpeRatio: perf.sharpeRatio,
-      aum: prof.aum, copiers: prof.copiers, maxCopiers: prof.maxCopiers,
-      totalCopiers: prof.totalCopiers, mockCopiers: sd.mockCopiers,
-      marginBalance: sd.marginBalance, profitShare: prof.profitShare,
-    });
-    statsLoadedAt = now;
-  } catch (e) { /* 静默失败，保留页面原值 */ }
-}
-
 async function load() {
   // 先走 Worker 直连上游（页面每 60 秒刷新），直连失败再读 5 分钟快照文件
   try {
