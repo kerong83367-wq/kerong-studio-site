@@ -6,16 +6,16 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-06T17:40:58.414098+08:00",
-  "equity": 152311.18878593,
-  "equityUpdatedAt": "2026-11-06T17:40:58.414098+08:00",
-  "marginBalance": 152311.18878593,
-  "marginBalanceUpdatedAt": "2026-11-06T17:40:58.414098+08:00",
+  "lastUpdatedAt": "2026-11-06T17:47:29.722262+08:00",
+  "equity": 151002.59812461,
+  "equityUpdatedAt": "2026-11-06T17:47:29.722261+08:00",
+  "marginBalance": 151002.59812461,
+  "marginBalanceUpdatedAt": "2026-11-06T17:47:29.722261+08:00",
   "equityStale": false,
-  "effectiveLeverage": 4.864915289554096,
+  "effectiveLeverage": 4.901383116458861,
   "valuationComplete": true,
-  "notional": 740981.0310948312,
-  "unrealizedPnl": 2653.0630948310645,
+  "notional": 740121.5849893859,
+  "unrealizedPnl": 1793.6169893857968,
   "positionCount": 1,
   "positions": [
     {
@@ -24,14 +24,14 @@
       "quantity": 9.73,
       "quantityUnit": "币",
       "entryPrice": 75881.6,
-      "markPrice": 76154.26835507,
+      "markPrice": 76065.93884783,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 740981.0310948312,
-      "unrealizedPnl": 2653.0630948310645,
+      "notional": 740121.5849893859,
+      "unrealizedPnl": 1793.6169893857968,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-06T09:41:01.054712403Z",
-      "updatedAt": "2026-11-06T17:40:58.413475+08:00"
+      "priceUpdatedAt": "2026-11-06T09:47:43.393744632Z",
+      "updatedAt": "2026-11-06T17:47:29.721642+08:00"
     }
   ],
   "events": [
@@ -1311,21 +1311,6 @@
       "detectedAt": "2026-10-09T00:12:25.555+08:00"
     },
     {
-      "id": 2280,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "CRCLUSDT",
-      "side": "SHORT",
-      "action": "REDUCE_SHORT",
-      "quantity": 1941.11,
-      "quantityUnit": "币",
-      "price": 80.0849991,
-      "beforeQuantity": 7764.450000000001,
-      "afterQuantity": 5823.340000000001,
-      "sourceTime": "2026-10-08T19:24:17.127+08:00",
-      "detectedAt": "2026-10-08T19:26:20.616+08:00"
-    },
-    {
       "id": 2281,
       "traderId": 2,
       "traderName": "熬鹰资本",
@@ -1338,6 +1323,21 @@
       "beforeQuantity": 5823.340000000001,
       "afterQuantity": 9.094947017729282e-13,
       "sourceTime": "2026-10-08T19:24:21.229+08:00",
+      "detectedAt": "2026-10-08T19:26:20.616+08:00"
+    },
+    {
+      "id": 2280,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "CRCLUSDT",
+      "side": "SHORT",
+      "action": "REDUCE_SHORT",
+      "quantity": 1941.11,
+      "quantityUnit": "币",
+      "price": 80.0849991,
+      "beforeQuantity": 7764.450000000001,
+      "afterQuantity": 5823.340000000001,
+      "sourceTime": "2026-10-08T19:24:17.127+08:00",
       "detectedAt": "2026-10-08T19:26:20.616+08:00"
     },
     {
@@ -3542,9 +3542,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-06T09:38:48.666Z",
+    "updatedAt": "2026-11-06T09:43:51.680Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-06T17:41:01.193534+08:00",
+  "fetchedAt": "2026-11-06T17:47:47.126947+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
