@@ -318,7 +318,7 @@ function render(d) {
   pnlEl.className = (d.unrealizedPnl || 0) > 0 ? 'green' : (d.unrealizedPnl || 0) < 0 ? 'red' : '';
   if (d.marginBalance) document.getElementById('ovEquity').textContent = fmt(d.marginBalance) + ' USDT';
 
-  // 30 天表现数据（币安官方口径，由 Worker 从币安官方接口同步，约 10 分钟刷新一次）
+  // 30 天表现数据（币安官方口径：浏览器直连币安官方接口，Worker 服务端调会被 403 拦）
   if (d.stats) renderStats(d.stats);
 
   const pw = document.getElementById('pane-positions');
@@ -358,7 +358,26 @@ function renderStats(st) {
   if (st.mockCopiers !== undefined) set('srMock', fmt(st.mockCopiers, 0));
   set('srClosed', String(st.trades));
 }
+// 30 天表现数据：浏览器直连币安官方 performance 接口（币安对该接口开了 CORS: *）。
+// Worker 服务端调同一接口会被币安 403（共享出口 IP 被拦），所以表现数字走浏览器直连；
+// 失败时不报错，页面保留 Worker 给的数字或写死值。
+const BINANCE_PERF = 'https://www.binance.com/bapi/futures/v1/public/future/copy-trade/lead-portfolio/performance?portfolioId=5075281354358777856&timeRange=30D';
+async function loadStatsFromBinance() {
+  try {
+    const r = await fetch(BINANCE_PERF, {cache: 'no-store'});
+    if (!r.ok) return;
+    const d = (await r.json()).data;
+    if (!d || d.roi === undefined || d.pnl === undefined) return;
+    renderStats({
+      roi: d.roi / 100, pnl: d.pnl, maxDrawdown: d.mdd / 100,
+      copierPnl: d.copierPnl, winRate: d.winRate / 100, wins: d.winOrders,
+      trades: d.totalOrder, sharpeRatio: parseFloat(d.sharpRatio),
+    });
+  } catch (e) { /* 直连失败就留着原数字 */ }
+}
 async function load() {
+  // 表现数字浏览器直连币安（与仓位数据并行，不阻塞）
+  loadStatsFromBinance();
   // 先走 Worker 直连上游（页面每 60 秒刷新），直连失败再读 5 分钟快照文件
   try {
     const r = await fetch(AUTH_API + '/api/radar', {cache: 'no-store'});

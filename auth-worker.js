@@ -189,19 +189,6 @@ async function fetchStats() {
     return statsCache.data;
   }
 }
-// 临时诊断：看 Worker 调币安官方接口到底返回什么（调通后删掉）
-async function handleDebugStats(req) {
-  try {
-    const r = await fetch(BINANCE_PERF, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-      signal: AbortSignal.timeout(10000),
-    });
-    const text = await r.text();
-    return json(req, { status: r.status, ok: r.ok, head: text.slice(0, 300) });
-  } catch (e) {
-    return json(req, { error: String((e && e.message) || e) });
-  }
-}
 async function handleRadar(req) {
   const now = Date.now();
   if (radarCache.data && now - radarCache.at < RADAR_CACHE_SECONDS * 1000) {
@@ -235,7 +222,6 @@ export default {
     const url = new URL(req.url);
     // 直连接口不依赖 KV，放前面
     if (req.method === 'GET' && url.pathname === '/api/radar') return handleRadar(req);
-    if (req.method === 'GET' && url.pathname === '/api/debug-stats') return handleDebugStats(req);
     if (!env.AUTH_KV) {
       return json(req, { ok: false, error: '后端 KV 未绑定，请在 Worker 设置里绑定 AUTH_KV。' }, 500);
     }
