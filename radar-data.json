@@ -6,11 +6,11 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-07T09:28:46.548466+08:00",
+  "lastUpdatedAt": "2026-11-07T15:35:57.425404+08:00",
   "equity": 150444.76368556,
-  "equityUpdatedAt": "2026-11-07T09:28:46.548466+08:00",
+  "equityUpdatedAt": "2026-11-07T15:35:57.425404+08:00",
   "marginBalance": 150444.76368556,
-  "marginBalanceUpdatedAt": "2026-11-07T09:28:46.548466+08:00",
+  "marginBalanceUpdatedAt": "2026-11-07T15:35:57.425404+08:00",
   "equityStale": false,
   "effectiveLeverage": 0.0,
   "valuationComplete": true,
@@ -1310,21 +1310,6 @@
       "detectedAt": "2026-10-09T00:12:25.555+08:00"
     },
     {
-      "id": 2280,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "CRCLUSDT",
-      "side": "SHORT",
-      "action": "REDUCE_SHORT",
-      "quantity": 1941.11,
-      "quantityUnit": "币",
-      "price": 80.0849991,
-      "beforeQuantity": 7764.450000000001,
-      "afterQuantity": 5823.340000000001,
-      "sourceTime": "2026-10-08T19:24:17.127+08:00",
-      "detectedAt": "2026-10-08T19:26:20.616+08:00"
-    },
-    {
       "id": 2281,
       "traderId": 2,
       "traderName": "熬鹰资本",
@@ -1337,6 +1322,21 @@
       "beforeQuantity": 5823.340000000001,
       "afterQuantity": 9.094947017729282e-13,
       "sourceTime": "2026-10-08T19:24:21.229+08:00",
+      "detectedAt": "2026-10-08T19:26:20.616+08:00"
+    },
+    {
+      "id": 2280,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "CRCLUSDT",
+      "side": "SHORT",
+      "action": "REDUCE_SHORT",
+      "quantity": 1941.11,
+      "quantityUnit": "币",
+      "price": 80.0849991,
+      "beforeQuantity": 7764.450000000001,
+      "afterQuantity": 5823.340000000001,
+      "sourceTime": "2026-10-08T19:24:17.127+08:00",
       "detectedAt": "2026-10-08T19:26:20.616+08:00"
     },
     {
@@ -3526,9 +3526,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-07T01:26:23.832Z",
+    "updatedAt": "2026-11-07T07:34:22.175Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-07T09:29:04.762898+08:00",
+  "fetchedAt": "2026-11-07T15:36:09.091583+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
