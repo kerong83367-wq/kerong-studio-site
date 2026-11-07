@@ -6,11 +6,11 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-07T15:35:57.425404+08:00",
+  "lastUpdatedAt": "2026-11-07T22:19:25.991091+08:00",
   "equity": 150444.76368556,
-  "equityUpdatedAt": "2026-11-07T15:35:57.425404+08:00",
+  "equityUpdatedAt": "2026-11-07T22:19:25.99109+08:00",
   "marginBalance": 150444.76368556,
-  "marginBalanceUpdatedAt": "2026-11-07T15:35:57.425404+08:00",
+  "marginBalanceUpdatedAt": "2026-11-07T22:19:25.99109+08:00",
   "equityStale": false,
   "effectiveLeverage": 0.0,
   "valuationComplete": true,
@@ -1175,21 +1175,6 @@
       "detectedAt": "2026-10-10T01:24:52.864+08:00"
     },
     {
-      "id": 2327,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ZECUSDT",
-      "side": "LONG",
-      "action": "CLOSE_LONG",
-      "quantity": 1991.675,
-      "quantityUnit": "币",
-      "price": 1212.37956,
-      "beforeQuantity": 1991.675,
-      "afterQuantity": 0.0,
-      "sourceTime": "2026-10-10T01:14:10.563+08:00",
-      "detectedAt": "2026-10-10T01:16:09.064+08:00"
-    },
-    {
       "id": 2326,
       "traderId": 2,
       "traderName": "熬鹰资本",
@@ -1202,6 +1187,21 @@
       "beforeQuantity": 2620.625,
       "afterQuantity": 1991.675,
       "sourceTime": "2026-10-10T01:14:04.361+08:00",
+      "detectedAt": "2026-10-10T01:16:09.064+08:00"
+    },
+    {
+      "id": 2327,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "ZECUSDT",
+      "side": "LONG",
+      "action": "CLOSE_LONG",
+      "quantity": 1991.675,
+      "quantityUnit": "币",
+      "price": 1212.37956,
+      "beforeQuantity": 1991.675,
+      "afterQuantity": 0.0,
+      "sourceTime": "2026-10-10T01:14:10.563+08:00",
       "detectedAt": "2026-10-10T01:16:09.064+08:00"
     },
     {
@@ -3526,9 +3526,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-07T07:34:22.175Z",
+    "updatedAt": "2026-11-07T14:18:23.452Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-07T15:36:09.091583+08:00",
+  "fetchedAt": "2026-11-07T22:19:28.255520+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
