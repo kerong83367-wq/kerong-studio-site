@@ -6,19 +6,65 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-07T22:19:25.991091+08:00",
-  "equity": 150444.76368556,
-  "equityUpdatedAt": "2026-11-07T22:19:25.99109+08:00",
-  "marginBalance": 150444.76368556,
-  "marginBalanceUpdatedAt": "2026-11-07T22:19:25.99109+08:00",
+  "lastUpdatedAt": "2026-11-08T02:51:00.813534+08:00",
+  "equity": 150318.77420747,
+  "equityUpdatedAt": "2026-11-08T02:51:00.813534+08:00",
+  "marginBalance": 150318.77420747,
+  "marginBalanceUpdatedAt": "2026-11-08T02:51:00.813534+08:00",
   "equityStale": false,
-  "effectiveLeverage": 0.0,
+  "effectiveLeverage": 4.998321482737733,
   "valuationComplete": true,
-  "notional": 0.0,
-  "unrealizedPnl": 0.0,
-  "positionCount": 0,
-  "positions": [],
+  "notional": 751341.5583800001,
+  "unrealizedPnl": -86.0524460901396,
+  "positionCount": 1,
+  "positions": [
+    {
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "quantity": 336.082,
+      "quantityUnit": "币",
+      "entryPrice": 2235.3339540169063,
+      "markPrice": 2235.59,
+      "leverage": 0,
+      "margin": 0.0,
+      "notional": 751341.5583800001,
+      "unrealizedPnl": -86.0524460901396,
+      "priceSource": "BINANCE 标记价",
+      "priceUpdatedAt": "2026-11-07T18:51:11.423179876Z",
+      "updatedAt": "2026-11-08T02:51:00.813011+08:00"
+    }
+  ],
   "events": [
+    {
+      "id": 3676,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "action": "ADD_SHORT",
+      "quantity": 168.061,
+      "quantityUnit": "币",
+      "price": 2234.48559,
+      "beforeQuantity": 168.021,
+      "afterQuantity": 336.082,
+      "sourceTime": "2026-11-08T00:29:51.029+08:00",
+      "detectedAt": "2026-11-08T00:32:01.785044+08:00"
+    },
+    {
+      "id": 3675,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "ETHUSDT",
+      "side": "SHORT",
+      "action": "OPEN_SHORT",
+      "quantity": 168.021,
+      "quantityUnit": "币",
+      "price": 2236.18252,
+      "beforeQuantity": 0.0,
+      "afterQuantity": 168.021,
+      "sourceTime": "2026-11-08T00:29:47.436+08:00",
+      "detectedAt": "2026-11-08T00:31:47.89601+08:00"
+    },
     {
       "id": 3652,
       "traderId": 2,
@@ -1175,21 +1221,6 @@
       "detectedAt": "2026-10-10T01:24:52.864+08:00"
     },
     {
-      "id": 2326,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ZECUSDT",
-      "side": "LONG",
-      "action": "REDUCE_LONG",
-      "quantity": 628.95,
-      "quantityUnit": "币",
-      "price": 1216.15446,
-      "beforeQuantity": 2620.625,
-      "afterQuantity": 1991.675,
-      "sourceTime": "2026-10-10T01:14:04.361+08:00",
-      "detectedAt": "2026-10-10T01:16:09.064+08:00"
-    },
-    {
       "id": 2327,
       "traderId": 2,
       "traderName": "熬鹰资本",
@@ -1202,6 +1233,21 @@
       "beforeQuantity": 1991.675,
       "afterQuantity": 0.0,
       "sourceTime": "2026-10-10T01:14:10.563+08:00",
+      "detectedAt": "2026-10-10T01:16:09.064+08:00"
+    },
+    {
+      "id": 2326,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "ZECUSDT",
+      "side": "LONG",
+      "action": "REDUCE_LONG",
+      "quantity": 628.95,
+      "quantityUnit": "币",
+      "price": 1216.15446,
+      "beforeQuantity": 2620.625,
+      "afterQuantity": 1991.675,
+      "sourceTime": "2026-10-10T01:14:04.361+08:00",
       "detectedAt": "2026-10-10T01:16:09.064+08:00"
     },
     {
@@ -1488,36 +1534,6 @@
       "afterQuantity": 2130.42,
       "sourceTime": "2026-10-03T22:11:59.464+08:00",
       "detectedAt": "2026-10-03T23:17:17.992+08:00"
-    },
-    {
-      "id": 2187,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ZECUSDT",
-      "side": "LONG",
-      "action": "ADD_LONG",
-      "quantity": 387.433,
-      "quantityUnit": "币",
-      "price": 1386.48845,
-      "beforeQuantity": 2538.531,
-      "afterQuantity": 2925.964,
-      "sourceTime": "2026-10-02T12:41:17.904+08:00",
-      "detectedAt": "2026-10-02T12:43:15.8+08:00"
-    },
-    {
-      "id": 2186,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ZECUSDT",
-      "side": "LONG",
-      "action": "ADD_LONG",
-      "quantity": 72.136,
-      "quantityUnit": "币",
-      "price": 1386.51431,
-      "beforeQuantity": 2466.395,
-      "afterQuantity": 2538.531,
-      "sourceTime": "2026-10-02T12:39:59.165+08:00",
-      "detectedAt": "2026-10-02T12:41:55.922+08:00"
     }
   ],
   "history": {
@@ -3526,9 +3542,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-07T14:18:23.452Z",
+    "updatedAt": "2026-11-07T18:51:04.693Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-07T22:19:28.255520+08:00",
+  "fetchedAt": "2026-11-08T02:51:12.226558+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
