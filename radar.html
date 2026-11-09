@@ -174,7 +174,8 @@
 
   <div class="livebar">
     <span class="pill-live" id="statusPill">同步中…</span>
-    <button class="btn btn-ghost" id="soundBtn" onclick="toggleSound()" title="他开新仓（含加仓）时响铃提醒；需保持本页面打开">🔔 开单提醒：关</button>
+    <button class="btn btn-ghost" id="soundBtn" onclick="toggleSound()" title="他开新仓（含加仓）时响铃并语音播报开单内容；需保持本页面打开">🔔 开单提醒：关</button>
+    <select id="volSel" onchange="setVol(this.value)" title="提醒音量" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 6px;font-size:13px;cursor:pointer;"><option value="大">音量：大</option><option value="中">音量：中</option><option value="小">音量：小</option></select>
     <span><span class="lab">保证金 </span><b id="lbEquity">—</b></span>
     <span><span class="lab">持仓总价值 </span><b id="lbNotional">—</b></span>
     <span><span class="lab">实际杠杆 </span><b id="lbLev">—</b></span>
@@ -244,11 +245,17 @@ const fmtTime = (s) => { if (!s) return '—'; const d = new Date(s); return isN
 const sideText = (sym, side) => sym.replace(/USDT$/, '') + (side === 'LONG' ? '多' : side === 'SHORT' ? '空' : '');
 let lastData = null, chartMode = 'roi';
 
-/* ---- 开单声音提醒（WebAudio 双音提示，无需音频文件） ----
+/* ---- 开单声音提醒 + 语音播报（WebAudio + speechSynthesis，无需音频文件） ----
    浏览器规定：声音只能在用户点过页面之后才能响。所以要先点一下
-   “开单提醒”按钮开启（点开时会响一声确认），之后每 60 秒刷新时，
-   一旦发现新的开仓/加仓事件就响两声。页面关了就没法响。 */
+   “开单提醒”按钮开启（点开时会响一声并说一句“开单提醒已开启”，确认
+   能听见），之后每 60 秒刷新时，一旦发现新的开仓/加仓事件就响铃并
+   语音播报开单内容。页面关了就没法响。
+   响度：改用方波（听感比正弦波响得多）+ 三轮双音 + 更长音长，默认
+   音量“大”；下拉可调大/中/小。但最终仍受 Mac 系统音量限制，系统
+   音量本身小的话，页面再响也有限。 */
 let soundOn = localStorage.getItem('radar_sound') === '1';
+let volLevel = localStorage.getItem('radar_vol') || '大';
+const VOL_GAIN = { '大': 1.0, '中': 0.6, '小': 0.35 };
 let audioCtx = null, lastSeenEventId = null;
 function ensureAudio() {
   try {
@@ -258,9 +265,11 @@ function ensureAudio() {
 }
 function tone(freq, t0, dur) {
   const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-  o.type = 'sine'; o.frequency.value = freq;
+  o.type = 'square'; o.frequency.value = freq;
+  const peak = VOL_GAIN[volLevel] || 1.0;
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.9, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(peak, t0 + 0.01);
+  g.gain.setValueAtTime(peak, t0 + Math.max(0.01, dur - 0.03));
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   o.connect(g); g.connect(audioCtx.destination);
   o.start(t0); o.stop(t0 + dur + 0.05);
@@ -269,34 +278,61 @@ function playOpenAlert() {
   if (!soundOn) return;
   ensureAudio();
   if (!audioCtx || audioCtx.state !== 'running') return;
-  const t = audioCtx.currentTime;
-  tone(880, t, 0.18); tone(1174.66, t + 0.22, 0.18);
-  tone(880, t + 0.44, 0.18); tone(1174.66, t + 0.66, 0.28);
+  const t = audioCtx.currentTime + 0.02;
+  [0, 0.55, 1.10].forEach(off => { tone(880, t + off, 0.22); tone(1318.5, t + off + 0.26, 0.24); });
+}
+/* ---- 语音播报开单内容：如“熬鹰资本开空以太坊，336.08个，均价2235.33” ---- */
+const SYM_CN = { ETH: '以太坊', BTC: '比特币', SKHYNIX: 'SK海力士', SNDK: '闪迪', MU: '美光', ZEC: '大零币', HYPE: '海珀', CRCL: '瑟克' };
+function speak(text) {
+  if (!soundOn || !('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN'; u.rate = 1.1; u.volume = 1;
+    window.speechSynthesis.speak(u);
+  } catch (e) { /* 不支持语音就只响铃 */ }
+}
+function describeOpen(e) {
+  const sym = (e.symbol || '').replace(/USDT$/, '');
+  const name = SYM_CN[sym] || sym;
+  const action = ACTION_LABEL[e.action] || '开仓';
+  return '熬鹰资本' + action + name + '，' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + '个，均价' + fmt(e.price);
 }
 function updateSoundBtn() {
   const b = document.getElementById('soundBtn');
   if (b) b.textContent = soundOn ? '🔔 开单提醒：开' : '🔔 开单提醒：关';
 }
+function setVol(v) {
+  volLevel = v;
+  localStorage.setItem('radar_vol', v);
+  const s = document.getElementById('volSel');
+  if (s) s.value = v;
+}
 function toggleSound() {
   soundOn = !soundOn;
   localStorage.setItem('radar_sound', soundOn ? '1' : '0');
   updateSoundBtn();
-  if (soundOn) playOpenAlert(); // 开启时响一声，确认能听见
+  if (soundOn) { playOpenAlert(); speak('开单提醒已开启'); } // 开启时响一声并说一句，确认能听见
 }
 /* 之前开着提醒、刷新后重进页面：任意点一下页面就恢复出声能力 */
 document.addEventListener('pointerdown', () => { if (soundOn) ensureAudio(); });
-/* 每 60 秒刷新时比对操作记录：出现新的开仓/加仓事件就响铃。
+/* 每 60 秒刷新时比对操作记录：出现新的开仓/加仓事件就响铃并语音播报。
    只认直连上游的实时数据，快照不触发；首次加载只记基线，不响。 */
 function checkNewOpens(d) {
   if (!d.live || !Array.isArray(d.events)) return;
-  let maxId = lastSeenEventId, fresh = false;
+  let maxId = lastSeenEventId;
+  const fresh = [];
   for (const e of d.events) {
     if (typeof e.id !== 'number') continue;
-    if (lastSeenEventId !== null && e.id > lastSeenEventId && /OPEN|ADD/.test(e.action || '')) fresh = true;
+    if (lastSeenEventId !== null && e.id > lastSeenEventId && /OPEN|ADD/.test(e.action || '')) fresh.push(e);
     if (maxId === null || e.id > maxId) maxId = e.id;
   }
   lastSeenEventId = maxId;
-  if (fresh) playOpenAlert();
+  if (fresh.length) {
+    playOpenAlert();
+    fresh.sort((a, b) => a.id - b.id);
+    speak(fresh.slice(0, 2).map(describeOpen).join('；'));
+  }
 }
 
 /* ---- 收益率曲线（按截图走势还原） ---- */
@@ -534,6 +570,7 @@ drawDonut();
 bindAuthButtons();
 refreshAuthArea();
 updateSoundBtn();
+setVol(volLevel);
 load();
 setInterval(load, 60000);
 </script>
