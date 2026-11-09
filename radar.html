@@ -180,7 +180,7 @@
     <span><span class="lab">持仓总价值 </span><b id="lbNotional">—</b></span>
     <span><span class="lab">实际杠杆 </span><b id="lbLev">—</b></span>
     <span><span class="lab">当前浮盈亏 </span><b id="lbPnl">—</b></span>
-    <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · <span id="liveNote">直连上游 · 每 60 秒刷新</span></span>
+    <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · <span id="liveNote">直连上游 · 每 10 秒刷新</span></span>
   </div>
   <div class="err" id="errBox">刚才那次刷新没拿到新数据，显示的是上一次快照，稍后会自动再试。</div>
 
@@ -209,7 +209,7 @@
   </div>
 
   <footer>
-    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 60 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3–4 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
+    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 10 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
     本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
@@ -248,7 +248,7 @@ let lastData = null, chartMode = 'roi';
 /* ---- 开单声音提醒 + 语音播报（WebAudio + speechSynthesis，无需音频文件） ----
    浏览器规定：声音只能在用户点过页面之后才能响。所以要先点一下
    “开单提醒”按钮开启（点开时会响一声并说一句“开单提醒已开启”，确认
-   能听见），之后每 60 秒刷新时，一旦发现新的开仓/加仓事件就响铃并
+   能听见），之后每 10 秒刷新时，一旦发现新的开仓/加仓事件就响铃并
    语音播报开单内容。页面关了就没法响。
    响度：改用方波（听感比正弦波响得多）+ 三轮双音 + 更长音长，默认
    音量“大”；下拉可调大/中/小。但最终仍受 Mac 系统音量限制，系统
@@ -316,7 +316,7 @@ function toggleSound() {
 }
 /* 之前开着提醒、刷新后重进页面：任意点一下页面就恢复出声能力 */
 document.addEventListener('pointerdown', () => { if (soundOn) ensureAudio(); });
-/* 每 60 秒刷新时比对操作记录：出现新的开仓/加仓事件就响铃并语音播报。
+/* 每 10 秒刷新时比对操作记录：出现新的开仓/加仓事件就响铃并语音播报。
    只认直连上游的实时数据，快照不触发；首次加载只记基线，不响。 */
 function checkNewOpens(d) {
   if (!d.live || !Array.isArray(d.events)) return;
@@ -471,7 +471,7 @@ async function loadStatsFromBinance() {
 async function load() {
   // 表现数字浏览器直连币安（与仓位数据并行，不阻塞）
   loadStatsFromBinance();
-  // 先走 Worker 直连上游（页面每 60 秒刷新），直连失败再读 5 分钟快照文件
+  // 先走 Worker 直连上游（页面每 10 秒刷新），直连失败再读 5 分钟快照文件
   try {
     const r = await fetch(AUTH_API + '/api/radar', {cache: 'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -479,7 +479,7 @@ async function load() {
     if (d.ok === false || d.id !== 2) throw new Error('bad live data');
     document.getElementById('errBox').style.display = 'none';
     render(d);
-    document.getElementById('liveNote').textContent = '直连上游 · 每 60 秒刷新';
+    document.getElementById('liveNote').textContent = '直连上游 · 每 10 秒刷新';
     return;
   } catch (e) { /* 直连失败，读快照 */ }
   try {
@@ -487,7 +487,7 @@ async function load() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     document.getElementById('errBox').style.display = 'none';
     render(await r.json());
-    document.getElementById('liveNote').textContent = '直连失败，读 5 分钟快照 · 页面每 60 秒刷新';
+    document.getElementById('liveNote').textContent = '直连失败，读 5 分钟快照 · 页面每 10 秒刷新';
   } catch (e) { document.getElementById('errBox').style.display = 'block'; }
 }
 
@@ -572,7 +572,7 @@ refreshAuthArea();
 updateSoundBtn();
 setVol(volLevel);
 load();
-setInterval(load, 60000);
+setInterval(load, 10000);
 </script>
 </body>
 </html>
