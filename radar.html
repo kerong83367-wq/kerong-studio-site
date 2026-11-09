@@ -282,7 +282,7 @@ function playOpenAlert() {
   [0, 0.55, 1.10].forEach(off => { tone(880, t + off, 0.22); tone(1318.5, t + off + 0.26, 0.24); });
 }
 /* ---- 语音播报开单内容：如“熬鹰资本开空以太坊，336.08个，均价2235.33” ---- */
-const SYM_CN = { ETH: '以太坊', BTC: '比特币', SKHYNIX: 'SK海力士', SNDK: '闪迪', MU: '美光', ZEC: '大零币', HYPE: '海珀', CRCL: '瑟克' };
+const SYM_CN = { ETH: '以太坊', BTC: '比特币', NVDA: '英伟达', SKHYNIX: 'SK海力士', SNDK: '闪迪', MU: '美光', ZEC: '大零币', HYPE: '海珀', CRCL: '瑟克' };
 function speak(text) {
   if (!soundOn || !('speechSynthesis' in window)) return;
   try {
