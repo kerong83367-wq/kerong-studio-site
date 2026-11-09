@@ -174,6 +174,7 @@
 
   <div class="livebar">
     <span class="pill-live" id="statusPill">同步中…</span>
+    <button class="btn btn-ghost" id="soundBtn" onclick="toggleSound()" title="他开新仓（含加仓）时响铃提醒；需保持本页面打开">🔔 开单提醒：关</button>
     <span><span class="lab">保证金 </span><b id="lbEquity">—</b></span>
     <span><span class="lab">持仓总价值 </span><b id="lbNotional">—</b></span>
     <span><span class="lab">实际杠杆 </span><b id="lbLev">—</b></span>
@@ -243,6 +244,61 @@ const fmtTime = (s) => { if (!s) return '—'; const d = new Date(s); return isN
 const sideText = (sym, side) => sym.replace(/USDT$/, '') + (side === 'LONG' ? '多' : side === 'SHORT' ? '空' : '');
 let lastData = null, chartMode = 'roi';
 
+/* ---- 开单声音提醒（WebAudio 双音提示，无需音频文件） ----
+   浏览器规定：声音只能在用户点过页面之后才能响。所以要先点一下
+   “开单提醒”按钮开启（点开时会响一声确认），之后每 60 秒刷新时，
+   一旦发现新的开仓/加仓事件就响两声。页面关了就没法响。 */
+let soundOn = localStorage.getItem('radar_sound') === '1';
+let audioCtx = null, lastSeenEventId = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { /* 旧浏览器不支持就静默 */ }
+}
+function tone(freq, t0, dur) {
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function playOpenAlert() {
+  if (!soundOn) return;
+  ensureAudio();
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const t = audioCtx.currentTime;
+  tone(880, t, 0.18); tone(1174.66, t + 0.22, 0.18);
+  tone(880, t + 0.44, 0.18); tone(1174.66, t + 0.66, 0.28);
+}
+function updateSoundBtn() {
+  const b = document.getElementById('soundBtn');
+  if (b) b.textContent = soundOn ? '🔔 开单提醒：开' : '🔔 开单提醒：关';
+}
+function toggleSound() {
+  soundOn = !soundOn;
+  localStorage.setItem('radar_sound', soundOn ? '1' : '0');
+  updateSoundBtn();
+  if (soundOn) playOpenAlert(); // 开启时响一声，确认能听见
+}
+/* 之前开着提醒、刷新后重进页面：任意点一下页面就恢复出声能力 */
+document.addEventListener('pointerdown', () => { if (soundOn) ensureAudio(); });
+/* 每 60 秒刷新时比对操作记录：出现新的开仓/加仓事件就响铃。
+   只认直连上游的实时数据，快照不触发；首次加载只记基线，不响。 */
+function checkNewOpens(d) {
+  if (!d.live || !Array.isArray(d.events)) return;
+  let maxId = lastSeenEventId, fresh = false;
+  for (const e of d.events) {
+    if (typeof e.id !== 'number') continue;
+    if (lastSeenEventId !== null && e.id > lastSeenEventId && /OPEN|ADD/.test(e.action || '')) fresh = true;
+    if (maxId === null || e.id > maxId) maxId = e.id;
+  }
+  lastSeenEventId = maxId;
+  if (fresh) playOpenAlert();
+}
+
 /* ---- 收益率曲线（按截图走势还原） ---- */
 const ROI_SERIES = [[25],[35],[15],[45],[25],[50],[45],[40],[12],[55],[20],[35],[80],[110],[90],[100],[95],[10],[15],[120],[169.57]];
 const X_LABELS = ['10-08','10-13','10-18','10-23','10-28','11-02'];
@@ -304,6 +360,7 @@ function showTab(name) {
 /* ---- 实时数据 ---- */
 function render(d) {
   lastData = d;
+  checkNewOpens(d);
   const count = d.positionCount || 0;
   const pill = document.getElementById('statusPill');
   pill.textContent = count > 0 ? '持有 ' + count + ' 个仓位' : '当前空仓';
@@ -476,6 +533,7 @@ drawChart();
 drawDonut();
 bindAuthButtons();
 refreshAuthArea();
+updateSoundBtn();
 load();
 setInterval(load, 60000);
 </script>
