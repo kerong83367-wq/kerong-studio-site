@@ -6,35 +6,34 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-09T10:01:23.799987+08:00",
-  "equity": 210286.08598351,
-  "equityUpdatedAt": "2026-11-09T10:01:23.799987+08:00",
-  "marginBalance": 210286.08598351,
-  "marginBalanceUpdatedAt": "2026-11-09T10:01:23.799987+08:00",
+  "lastUpdatedAt": "2026-11-09T17:34:19.75005+08:00",
+  "equity": 207534.32962227,
+  "equityUpdatedAt": "2026-11-09T17:34:19.750049+08:00",
+  "marginBalance": 207534.32962227,
+  "marginBalanceUpdatedAt": "2026-11-09T17:34:19.750049+08:00",
   "equityStale": false,
-  "effectiveLeverage": 0.9811927115148259,
+  "effectiveLeverage": 0.0,
   "valuationComplete": true,
-  "notional": 206331.1749,
-  "unrealizedPnl": 6317.192423471001,
-  "positionCount": 1,
-  "positions": [
+  "notional": 0.0,
+  "unrealizedPnl": 0.0,
+  "positionCount": 0,
+  "positions": [],
+  "events": [
     {
+      "id": 3699,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
       "symbol": "SKHYNIXUSDT",
       "side": "LONG",
+      "action": "CLOSE_LONG",
       "quantity": 238.09,
       "quantityUnit": "币",
-      "entryPrice": 840.0772081,
-      "markPrice": 866.61,
-      "leverage": 0,
-      "margin": 0.0,
-      "notional": 206331.1749,
-      "unrealizedPnl": 6317.192423471001,
-      "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-09T02:01:27.612970779Z",
-      "updatedAt": "2026-11-09T10:01:23.799387+08:00"
-    }
-  ],
-  "events": [
+      "price": 868.8129606,
+      "beforeQuantity": 238.09,
+      "afterQuantity": 0.0,
+      "sourceTime": "2026-11-09T12:11:47.388+08:00",
+      "detectedAt": "2026-11-09T12:13:53.396958+08:00"
+    },
     {
       "id": 3698,
       "traderId": 2,
@@ -1416,21 +1415,6 @@
       "detectedAt": "2026-10-09T00:12:25.555+08:00"
     },
     {
-      "id": 2281,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "CRCLUSDT",
-      "side": "SHORT",
-      "action": "CLOSE_SHORT",
-      "quantity": 5823.34,
-      "quantityUnit": "币",
-      "price": 80.1344824,
-      "beforeQuantity": 5823.340000000001,
-      "afterQuantity": 9.094947017729282e-13,
-      "sourceTime": "2026-10-08T19:24:21.229+08:00",
-      "detectedAt": "2026-10-08T19:26:20.616+08:00"
-    },
-    {
       "id": 2280,
       "traderId": 2,
       "traderName": "熬鹰资本",
@@ -1443,6 +1427,21 @@
       "beforeQuantity": 7764.450000000001,
       "afterQuantity": 5823.340000000001,
       "sourceTime": "2026-10-08T19:24:17.127+08:00",
+      "detectedAt": "2026-10-08T19:26:20.616+08:00"
+    },
+    {
+      "id": 2281,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "CRCLUSDT",
+      "side": "SHORT",
+      "action": "CLOSE_SHORT",
+      "quantity": 5823.34,
+      "quantityUnit": "币",
+      "price": 80.1344824,
+      "beforeQuantity": 5823.340000000001,
+      "afterQuantity": 9.094947017729282e-13,
+      "sourceTime": "2026-10-08T19:24:21.229+08:00",
       "detectedAt": "2026-10-08T19:26:20.616+08:00"
     },
     {
@@ -1519,25 +1518,30 @@
       "afterQuantity": 6123.69,
       "sourceTime": "2026-10-07T19:45:12.328+08:00",
       "detectedAt": "2026-10-07T19:47:18.022+08:00"
-    },
-    {
-      "id": 2228,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ZECUSDT",
-      "side": "LONG",
-      "action": "CLOSE_LONG",
-      "quantity": 594.985,
-      "quantityUnit": "币",
-      "price": 1307.4102,
-      "beforeQuantity": 461.1640000000001,
-      "afterQuantity": 0.0,
-      "sourceTime": "2026-10-05T23:08:21.797+08:00",
-      "detectedAt": "2026-10-05T23:10:26.51+08:00"
     }
   ],
   "history": {
     "rows": [
+      {
+        "id": "official-c2a8ffab5ef732ceef73d480",
+        "traderId": 2,
+        "traderName": "熬鹰资本",
+        "symbol": "SKHYNIXUSDT",
+        "side": "LONG",
+        "openedAt": "2026-11-09T00:14:34.505Z",
+        "closedAt": "2026-11-09T04:11:47.389Z",
+        "entryPrice": 840.0772082,
+        "exitPrice": 868.81296065,
+        "peakQuantity": 238.09,
+        "closedQuantity": 238.09,
+        "realizedPnl": 6459.41769385,
+        "quantityUnit": "币",
+        "pnlCurrency": "U",
+        "priceCurrency": "U",
+        "complete": true,
+        "pnlKind": "OFFICIAL",
+        "quality": "已实现盈亏"
+      },
       {
         "id": "official-6f2134636b4ee0f3dfb9624e",
         "traderId": 2,
@@ -3517,34 +3521,14 @@
         "complete": true,
         "pnlKind": "OFFICIAL",
         "quality": "已实现盈亏"
-      },
-      {
-        "id": "official-1ffb6692e271f647763321b7",
-        "traderId": 2,
-        "traderName": "熬鹰资本",
-        "symbol": "MUUSDT",
-        "side": "SHORT",
-        "openedAt": "2026-07-17T15:03:47.725Z",
-        "closedAt": "2026-07-20T15:58:36.684Z",
-        "entryPrice": 863.1820711,
-        "exitPrice": 891.76382496,
-        "peakQuantity": 1993.72,
-        "closedQuantity": 2342.77,
-        "realizedPnl": -67683.40345329,
-        "quantityUnit": "币",
-        "pnlCurrency": "U",
-        "priceCurrency": "U",
-        "complete": true,
-        "pnlKind": "OFFICIAL",
-        "quality": "已实现盈亏"
       }
     ],
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-09T02:00:17.208Z",
+    "updatedAt": "2026-11-09T09:33:07.539Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-09T10:01:32.420538+08:00",
+  "fetchedAt": "2026-11-09T17:34:33.536730+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
