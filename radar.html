@@ -260,7 +260,10 @@ const VOL_GAIN = { '大': 1.0, '中': 0.6, '小': 0.35 };
 let audioCtx = null, lastSeenEventId = null;
 function ensureAudio() {
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.onstatechange = updateSoundBtn;
+    }
     if (audioCtx.state === 'suspended') audioCtx.resume();
   } catch (e) { /* 旧浏览器不支持就静默 */ }
 }
@@ -315,7 +318,10 @@ function describeClose(e) {
 }
 function updateSoundBtn() {
   const b = document.getElementById('soundBtn');
-  if (b) b.textContent = soundOn ? '🔔 开平仓提醒：开' : '🔔 开平仓提醒：关';
+  if (!b) return;
+  if (!soundOn) b.textContent = '🔔 开平仓提醒：关';
+  else if (audioCtx && audioCtx.state !== 'running') b.textContent = '🔔 点一下页面解锁声音';
+  else b.textContent = '🔔 开平仓提醒：开';
 }
 function setVol(v) {
   volLevel = v;
@@ -330,7 +336,7 @@ function toggleSound() {
   if (soundOn) { playOpenAlert(); speak('开平仓提醒已开启'); } // 开启时响一声并说一句，确认能听见
 }
 /* 之前开着提醒、刷新后重进页面：任意点一下页面就恢复出声能力 */
-document.addEventListener('pointerdown', () => { if (soundOn) ensureAudio(); });
+document.addEventListener('pointerdown', () => { if (soundOn) { ensureAudio(); updateSoundBtn(); } });
 /* 每 10 秒刷新时比对操作记录：出现新的开仓/加仓事件就响开仓提示音（升调）
    并语音播报，出现新的减仓/平仓事件就响平仓提示音（降调）并语音播报。
    只认直连上游的实时数据，快照不触发；首次加载只记基线，不响。 */
@@ -594,6 +600,7 @@ drawChart();
 drawDonut();
 bindAuthButtons();
 refreshAuthArea();
+ensureAudio(); /* 先建好音频对象，没点过页面时它是锁住的，按钮会显示“点一下解锁声音” */
 updateSoundBtn();
 setVol(volLevel);
 load();
