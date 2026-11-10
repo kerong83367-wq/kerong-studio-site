@@ -78,6 +78,22 @@
   .events li { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:9px; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; font-size:14px; }
   .events .time { color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
   .events .detail { color:var(--muted); font-variant-numeric:tabular-nums; }
+  /* 历史仓位卡片：按币安历史仓位页排布，一笔一张卡 */
+  .hist-note { color:var(--muted); font-size:12px; margin-bottom:12px; }
+  .hist-card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 20px; margin-bottom:14px; }
+  .hist-head { display:flex; align-items:center; gap:8px; font-size:15px; flex-wrap:wrap; }
+  .hist-head .sym { font-size:16px; font-weight:700; }
+  .hist-head .perp { color:var(--muted); font-weight:400; font-size:13px; }
+  .hist-head .closed { margin-left:auto; color:var(--muted); font-weight:400; font-size:13px; }
+  .hist-dir { font-size:13px; font-weight:700; padding:2px 8px; border-radius:5px; }
+  .hist-dir.long { background:rgba(14,203,129,.14); color:var(--green); }
+  .hist-dir.short { background:rgba(246,70,93,.14); color:var(--red); }
+  .hist-grid { display:grid; grid-template-columns:repeat(5, 1fr); gap:12px 16px; margin-top:14px; }
+  .hist-grid .cell .k { color:var(--muted); font-size:13px; }
+  .hist-grid .cell .v { font-size:14px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .hist-grid .cell.avg { grid-column:2; }
+  .hist-grid .cell.closedqty { grid-column:3; }
+  @media (max-width: 760px) { .hist-grid { grid-template-columns:repeat(2, 1fr); } .hist-grid .cell.avg, .hist-grid .cell.closedqty { grid-column:auto; } }
   .err { display:none; background:rgba(246,70,93,.12); border:1px solid rgba(246,70,93,.4); color:#ffb3b3; border-radius:10px; padding:10px 14px; font-size:14px; margin-top:14px; }
   footer { border-top:1px solid var(--line); margin-top:30px; padding:22px 0 8px; color:var(--muted); font-size:13px; }
   footer a { color:var(--blue); }
@@ -242,6 +258,8 @@ const ACTION_LABEL = { OPEN_LONG:'开多', ADD_LONG:'加多', REDUCE_LONG:'减�
 const fmt = (n, d=2) => (n === null || n === undefined || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtSigned = (n, d=2) => (n === null || n === undefined || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n, d);
 const fmtTime = (s) => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? s : d.toLocaleString('zh-CN', {hour12:false}); };
+const fmtDT = (s) => { if (!s) return '—'; const d = new Date(s); if (isNaN(d)) return s; const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
+const fmtPrice = (n) => fmt(n, (n >= 1000 || n === null || n === undefined) ? 2 : 5);
 const sideText = (sym, side) => sym.replace(/USDT$/, '') + (side === 'LONG' ? '多' : side === 'SHORT' ? '空' : '');
 let lastData = null, chartMode = 'roi';
 
@@ -454,14 +472,49 @@ function render(d) {
       '</tbody></table>';
   }
 
-  const closes = (d.events || []).filter(e => /CLOSE|REDUCE/.test(e.action)).slice(0, 10);
-  document.getElementById('pane-history').innerHTML = closes.length === 0 ? '<div class="empty-box">暂无平仓记录。</div>' :
-    '<ul class="events">' + closes.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
+  renderHistory(d);
 
   const evs = (d.events || []).slice(0, 15);
   document.getElementById('pane-events').innerHTML = evs.length === 0 ? '<div class="empty-box">暂无动态记录。</div>' :
     '<ul class="events">' + evs.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
 }
+
+/* ---- 历史仓位：一笔已平仓位一张卡，按币安历史仓位页排布 ----
+   数据走上游 history.rows（币安官方口径：开仓价/平仓均价/最大持仓量/
+   已平仓量/已实现盈亏，数字与币安历史仓位页一致）。杠杆倍数上游未
+   提供，故不显示。无 history 数据时回落到旧的平仓事件列表。 */
+let histShowAll = false;
+function renderHistory(d) {
+  const pane = document.getElementById('pane-history');
+  const rows = (d.history && Array.isArray(d.history.rows)) ? d.history.rows.slice() : [];
+  if (!rows.length) {
+    const closes = (d.events || []).filter(e => /CLOSE|REDUCE/.test(e.action)).slice(0, 10);
+    pane.innerHTML = closes.length === 0 ? '<div class="empty-box">暂无平仓记录。</div>' :
+      '<ul class="events">' + closes.map(e => '<li><span class="time">' + fmtTime(e.sourceTime) + '</span><span class="' + (/LONG/.test(e.action) ? 'long' : 'short') + '" style="font-weight:700">' + (ACTION_LABEL[e.action] || e.action) + '</span><span style="font-weight:700">' + sideText(e.symbol, e.side) + '</span><span class="detail">' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + ' 个 @ ' + fmt(e.price) + ' U</span></li>').join('') + '</ul>';
+    return;
+  }
+  rows.sort((a, b) => new Date(b.openedAt) - new Date(a.openedAt));
+  const shown = histShowAll ? rows : rows.slice(0, 10);
+  const cards = shown.map(r => {
+    const sym = r.symbol.replace(/USDT$/, '');
+    const dir = r.side === 'LONG' ? '做多' : '做空';
+    const pnlCls = r.realizedPnl > 0 ? 'green' : r.realizedPnl < 0 ? 'red' : '';
+    const q = v => fmt(v, v < 10 ? 3 : 2);
+    return '<div class="hist-card"><div class="hist-head"><span class="sym">' + r.symbol + '</span><span class="perp">永续</span><span class="hist-dir ' + (r.side === 'LONG' ? 'long' : 'short') + '">' + dir + '</span><span class="closed">全部平仓</span></div>' +
+      '<div class="hist-grid">' +
+      '<div class="cell"><div class="k">开仓时间</div><div class="v">' + fmtDT(r.openedAt) + '</div></div>' +
+      '<div class="cell"><div class="k">开仓价格</div><div class="v">' + fmtPrice(r.entryPrice) + ' USDT</div></div>' +
+      '<div class="cell"><div class="k">最大持仓量</div><div class="v">' + q(r.peakQuantity) + ' ' + sym + '</div></div>' +
+      '<div class="cell"><div class="k">平仓盈亏</div><div class="v ' + pnlCls + '">' + fmtSigned(r.realizedPnl) + ' USDT</div></div>' +
+      '<div class="cell"><div class="k">全部平仓</div><div class="v">' + fmtDT(r.closedAt) + '</div></div>' +
+      '<div class="cell avg"><div class="k">平均价</div><div class="v">' + fmtPrice(r.exitPrice) + ' USDT</div></div>' +
+      '<div class="cell closedqty"><div class="k">已平仓量</div><div class="v">' + q(r.closedQuantity) + ' ' + sym + '</div></div>' +
+      '</div></div>';
+  }).join('');
+  pane.innerHTML = '<p class="hist-note">平仓盈亏为币安官方已实现盈亏，与币安历史仓位页一致；按开仓时间倒序。</p>' + cards +
+    (rows.length > 10 ? '<div style="text-align:center"><button class="btn btn-ghost" onclick="toggleHistAll()">' + (histShowAll ? '收起，只看最近 10 笔' : '查看全部 ' + rows.length + ' 笔') + '</button></div>' : '');
+}
+function toggleHistAll() { histShowAll = !histShowAll; renderHistory(lastData); }
 
 // 30 天表现数据渲染：字段缺失时不覆盖页面写死值
 function renderStats(st) {
