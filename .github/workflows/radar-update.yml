@@ -1,4 +1,5 @@
-# 2026-11-06：定时从未自动触发，改动一次文件重新注册调度（逻辑未变）。
+# 2026-11-10：定时已注册但每天只零星跑几回，怀疑 */5 整点档太挤；
+# 改成错开整点的 2,7,12… 档再推一次重新注册（逻辑未变）。
 name: Update radar data
 
 # 每 5 分钟抓一次 911quant 公开接口（熬鹰资本，trader id 2），
@@ -6,7 +7,7 @@ name: Update radar data
 # JSON 就行，不用服务器，也不怕浏览器 CORS 拦截。
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
   workflow_dispatch:
 
 permissions:
