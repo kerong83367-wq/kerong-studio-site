@@ -94,6 +94,8 @@
   .hist-grid .cell.avg { grid-column:2; }
   .hist-grid .cell.closedqty { grid-column:3; }
   @media (max-width: 760px) { .hist-grid { grid-template-columns:repeat(2, 1fr); } .hist-grid .cell.avg, .hist-grid .cell.closedqty { grid-column:auto; } }
+  .simstats { display:flex; flex-wrap:wrap; gap:10px 28px; font-size:14px; color:var(--muted); padding:12px 0 4px; border-bottom:1px solid var(--line); }
+  .simstats b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
   .err { display:none; background:rgba(246,70,93,.12); border:1px solid rgba(246,70,93,.4); color:#ffb3b3; border-radius:10px; padding:10px 14px; font-size:14px; margin-top:14px; }
   footer { border-top:1px solid var(--line); margin-top:30px; padding:22px 0 8px; color:var(--muted); font-size:13px; }
   footer a { color:var(--blue); }
@@ -139,6 +141,7 @@
     </div>
     <div class="actions">
       <a class="btn" id="followBtn" href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">开启跟单</a>
+      <button class="btn btn-yellow" id="simBtn" onclick="toggleSimPanel()">模拟跟单</button>
       <a class="btn" href="https://coin.911quant.com/" target="_blank" rel="noopener">对比</a>
     </div>
   </div>
@@ -198,6 +201,7 @@
     <span><span class="lab">当前浮盈亏 </span><b id="lbPnl">—</b></span>
     <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · <span id="liveNote">直连上游 · 每 10 秒刷新</span></span>
   </div>
+  <div id="simPanel" style="display:none"></div>
   <div class="err" id="errBox">刚才那次刷新没拿到新数据，显示的是上一次快照，稍后会自动再试。</div>
 
   <div class="tabs" id="tabs">
@@ -473,6 +477,7 @@ function render(d) {
   }
 
   renderHistory(d);
+  reconcileSim(d);
 
   const evs = (d.events || []).slice(0, 15);
   document.getElementById('pane-events').innerHTML = evs.length === 0 ? '<div class="empty-box">暂无动态记录。</div>' :
@@ -515,6 +520,165 @@ function renderHistory(d) {
     (rows.length > 10 ? '<div style="text-align:center"><button class="btn btn-ghost" onclick="toggleHistAll()">' + (histShowAll ? '收起，只看最近 10 笔' : '查看全部 ' + rows.length + ' 笔') + '</button></div>' : '');
 }
 function toggleHistAll() { histShowAll = !histShowAll; renderHistory(lastData); }
+
+/* ---- 模拟跟单：虚拟 10,000 USDT 账户，按带单员仓位比例镜像 ----
+   只在本浏览器运行（localStorage 保存），页面关了就不再同步，不碰真钱。
+   比例 = 模拟权益 / 带单员权益，开仓时锁定在每笔模拟仓位上；带单员
+   加仓/减仓时模拟仓按同一比例跟；平仓按带单员实际成交价结算。
+   注意：上游持仓的 leverage 字段为 0（带单组合不暴露单笔杠杆），
+   保证金占用按带单员实际杠杆（effectiveLeverage）估算。 */
+const SIM_KEY = 'radar_sim_v1';
+const SIM_CAPITAL = 10000;
+let simState = null;
+try { simState = JSON.parse(localStorage.getItem(SIM_KEY) || 'null'); } catch (e) { simState = null; }
+let simPanelOpen = false;
+function saveSim() { try { localStorage.setItem(SIM_KEY, JSON.stringify(simState)); } catch (e) { /* 隐私模式写不进就只放内存 */ } }
+function simDir(side) { return side === 'LONG' ? 1 : -1; }
+function simUnrealized() {
+  if (!simState) return 0;
+  let u = 0;
+  for (const k in simState.positions) { const p = simState.positions[k]; u += (p.markPrice - p.entryPrice) * p.quantity * simDir(p.side); }
+  return u;
+}
+function simEquity() { return simState ? SIM_CAPITAL + simState.realizedPnl + simUnrealized() : SIM_CAPITAL; }
+function simMarginUsed() {
+  if (!simState) return 0;
+  let m = 0;
+  for (const k in simState.positions) { const p = simState.positions[k]; m += p.quantity * p.markPrice / (p.leverage || 5); }
+  return m;
+}
+function simMaxEventId(d) {
+  let maxId = null;
+  (d.events || []).forEach(e => { if (typeof e.id === 'number' && (maxId === null || e.id > maxId)) maxId = e.id; });
+  return maxId;
+}
+function simOpenPos(d, p, ratio) {
+  return { symbol: p.symbol, side: p.side, quantity: p.quantity * ratio, entryPrice: p.markPrice, markPrice: p.markPrice, leverage: d.effectiveLeverage || 5, ratio: ratio, openedAt: new Date().toISOString() };
+}
+function simClosePos(key, exitPrice, closedAt) {
+  const p = simState.positions[key];
+  if (!p) return;
+  const pnl = (exitPrice - p.entryPrice) * p.quantity * simDir(p.side);
+  simState.realizedPnl += pnl;
+  simState.trades.unshift({ symbol: p.symbol, side: p.side, action: 'CLOSE', quantity: p.quantity, entryPrice: p.entryPrice, exitPrice: exitPrice, pnl: pnl, closedAt: closedAt || new Date().toISOString() });
+  delete simState.positions[key];
+}
+/* 按带单员当前持仓快照同步模拟仓（开始 / 继续时用） */
+function simSyncSnapshot(d) {
+  const eq = d.marginBalance || d.equity;
+  if (!eq || eq <= 0) return false;
+  const ratio = simEquity() / eq;
+  const traderPos = {};
+  (d.positions || []).forEach(p => { traderPos[p.symbol + '_' + p.side] = p; });
+  for (const k in simState.positions) if (!traderPos[k]) simClosePos(k, simState.positions[k].markPrice);
+  (d.positions || []).forEach(p => {
+    const key = p.symbol + '_' + p.side;
+    if (!simState.positions[key]) simState.positions[key] = simOpenPos(d, p, ratio);
+  });
+  simState.lastEventId = simMaxEventId(d);
+  return true;
+}
+function startSim() {
+  const d = lastData;
+  if (!d || !(d.marginBalance || d.equity)) { alert('还没拿到带单员权益数据，稍后再试。'); return; }
+  simState = { active: true, startCapital: SIM_CAPITAL, startedAt: new Date().toISOString(), lastEventId: null, realizedPnl: 0, positions: {}, trades: [] };
+  if (!simSyncSnapshot(d)) { simState = null; alert('还没拿到带单员权益数据，稍后再试。'); return; }
+  saveSim();
+  simPanelOpen = true;
+  document.getElementById('simPanel').style.display = 'block';
+  renderSimPanel();
+}
+function resumeSim() {
+  if (!simState || !lastData) return;
+  if (!simSyncSnapshot(lastData)) { alert('还没拿到带单员权益数据，稍后再试。'); return; }
+  simState.active = true;
+  saveSim(); renderSimPanel();
+}
+function stopSim() { if (!simState) return; simState.active = false; saveSim(); renderSimPanel(); }
+function resetSim() { simState = null; saveSim(); renderSimPanel(); }
+function toggleSimPanel() {
+  simPanelOpen = !simPanelOpen;
+  document.getElementById('simPanel').style.display = simPanelOpen ? 'block' : 'none';
+  if (simPanelOpen) renderSimPanel();
+}
+function reconcileSim(d) {
+  if (!simState || !simState.active) return;
+  const traderPos = {};
+  (d.positions || []).forEach(p => { traderPos[p.symbol + '_' + p.side] = p; });
+  for (const k in simState.positions) { const tp = traderPos[k]; if (tp) simState.positions[k].markPrice = tp.markPrice; }
+  const evs = (d.events || []).filter(e => typeof e.id === 'number' && (simState.lastEventId === null || e.id > simState.lastEventId)).sort((a, b) => a.id - b.id);
+  for (const e of evs) {
+    if (new Date(e.sourceTime) < new Date(simState.startedAt)) continue;
+    const key = e.symbol + '_' + e.side;
+    const dir = simDir(e.side);
+    const tp = traderPos[key];
+    if (/OPEN|ADD/.test(e.action)) {
+      const ratio = simState.positions[key] ? simState.positions[key].ratio : simEquity() / (d.marginBalance || d.equity || 1);
+      const dq = e.quantity * ratio;
+      if (simState.positions[key]) {
+        const p = simState.positions[key];
+        p.entryPrice = (p.entryPrice * p.quantity + e.price * dq) / (p.quantity + dq);
+        p.quantity += dq;
+        p.markPrice = tp ? tp.markPrice : e.price;
+      } else {
+        simState.positions[key] = { symbol: e.symbol, side: e.side, quantity: dq, entryPrice: e.price, markPrice: tp ? tp.markPrice : e.price, leverage: d.effectiveLeverage || 5, ratio: ratio, openedAt: e.sourceTime };
+      }
+    } else if (/REDUCE|CLOSE/.test(e.action)) {
+      const p = simState.positions[key];
+      if (!p) continue;
+      const cq = Math.min(e.quantity * p.ratio, p.quantity);
+      const pnl = (e.price - p.entryPrice) * cq * dir;
+      simState.realizedPnl += pnl;
+      simState.trades.unshift({ symbol: e.symbol, side: e.side, action: e.action, quantity: cq, entryPrice: p.entryPrice, exitPrice: e.price, pnl: pnl, closedAt: e.sourceTime });
+      p.quantity -= cq;
+      if (p.quantity < 1e-9) delete simState.positions[key];
+    }
+  }
+  /* 兜底：带单员已没有的仓（事件列表被截断、没收到平仓事件时），按最后标记价平掉；刚开 60 秒内的仓跳过，避免上游持仓与事件短暂不一致时误杀 */
+  for (const k in simState.positions) {
+    if (!traderPos[k] && Date.now() - new Date(simState.positions[k].openedAt).getTime() > 60000) simClosePos(k, simState.positions[k].markPrice);
+  }
+  const maxId = simMaxEventId(d);
+  if (maxId !== null) simState.lastEventId = maxId;
+  saveSim();
+  if (simPanelOpen) renderSimPanel();
+}
+function renderSimPanel() {
+  const panel = document.getElementById('simPanel');
+  if (!panel) return;
+  if (!simState) {
+    panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>模拟跟单 · 虚拟账户</h2>' +
+      '<p class="hist-note">用虚拟的 10,000 USDT 跟着熬鹰资本做：他开仓你按比例开，他平仓你按比例平，盈亏实时算给你看。只在本浏览器运行，不碰真钱；页面关了就不再同步。</p>' +
+      '<p style="color:var(--muted);font-size:13px;margin-bottom:12px">启动后会按当前比例镜像他现在的持仓，之后的新开仓、加仓、减仓、平仓都会自动跟。</p>' +
+      '<button class="btn btn-yellow" onclick="startSim()">开始模拟（启动资金 10,000 USDT）</button></div>';
+    return;
+  }
+  const eq = simEquity(), u = simUnrealized(), avail = eq - simMarginUsed();
+  const ret = (eq - SIM_CAPITAL) / SIM_CAPITAL * 100;
+  const posKeys = Object.keys(simState.positions);
+  const posHtml = posKeys.length === 0 ? '<div class="empty-box">当前无模拟持仓。</div>' :
+    '<table><thead><tr><th>币种 / 方向</th><th>数量</th><th>开仓均价</th><th>标记价</th><th>浮动盈亏</th></tr></thead><tbody>' +
+    posKeys.map(k => { const p = simState.positions[k]; const pnl = (p.markPrice - p.entryPrice) * p.quantity * simDir(p.side);
+      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.quantity, p.quantity < 10 ? 3 : 2) + ' ' + p.symbol.replace(/USDT$/, '') + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(p.markPrice) + ' U</td><td class="' + (pnl > 0 ? 'green' : pnl < 0 ? 'red' : '') + '">' + fmtSigned(pnl) + ' U</td></tr>'; }).join('') + '</tbody></table>';
+  const trHtml = simState.trades.length === 0 ? '<p style="color:var(--muted);font-size:13px">暂无已平仓的模拟交易。</p>' :
+    '<table><thead><tr><th>平仓时间</th><th>币种 / 方向</th><th>数量</th><th>开仓价 → 平仓价</th><th>盈亏</th></tr></thead><tbody>' +
+    simState.trades.slice(0, 10).map(t => '<tr><td>' + fmtDT(t.closedAt) + '</td><td class="' + (t.side === 'LONG' ? 'long' : 'short') + '">' + sideText(t.symbol, t.side) + '</td><td>' + fmt(t.quantity, t.quantity < 10 ? 3 : 2) + '</td><td>' + fmtPrice(t.entryPrice) + ' → ' + fmtPrice(t.exitPrice) + ' U</td><td class="' + (t.pnl > 0 ? 'green' : t.pnl < 0 ? 'red' : '') + '">' + fmtSigned(t.pnl) + ' U</td></tr>').join('') + '</tbody></table>';
+  panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>模拟跟单 · 虚拟账户 <span class="right">' + (simState.active ? '进行中' : '已停止') + ' · 启动资金 10,000 USDT</span></h2>' +
+    '<div class="simstats">' +
+    '<span>模拟权益 <b class="' + (eq >= SIM_CAPITAL ? 'green' : 'red') + '">' + fmt(eq) + ' U</b></span>' +
+    '<span>可用资金 <b>' + fmt(avail) + ' U</b></span>' +
+    '<span>浮动盈亏 <b class="' + (u > 0 ? 'green' : u < 0 ? 'red' : '') + '">' + fmtSigned(u) + ' U</b></span>' +
+    '<span>累计盈亏 <b class="' + (simState.realizedPnl > 0 ? 'green' : simState.realizedPnl < 0 ? 'red' : '') + '">' + fmtSigned(simState.realizedPnl) + ' U</b></span>' +
+    '<span>收益率 <b class="' + (ret > 0 ? 'green' : ret < 0 ? 'red' : '') + '">' + fmtSigned(ret) + '%</b></span>' +
+    '<span>开始时间 <b>' + fmtDT(simState.startedAt) + '</b></span>' +
+    '</div>' +
+    '<h3 style="margin:16px 0 8px;font-size:15px">模拟持仓</h3>' + posHtml +
+    '<h3 style="margin:16px 0 8px;font-size:15px">模拟交易记录</h3>' + trHtml +
+    '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">' +
+    (simState.active ? '<button class="btn btn-ghost" onclick="stopSim()">停止模拟</button>' : '<button class="btn btn-yellow" onclick="resumeSim()">继续模拟</button>') +
+    '<button class="btn btn-ghost" onclick="resetSim()">重置（回到 10,000 USDT）</button></div>' +
+    '<p class="hist-note" style="margin-top:10px">模拟只在本浏览器运行，页面关了就不再同步；盈亏按带单员实际成交价算，未扣手续费和资金费。</p></div>';
+}
 
 // 30 天表现数据渲染：字段缺失时不覆盖页面写死值
 function renderStats(st) {
@@ -656,6 +820,7 @@ refreshAuthArea();
 ensureAudio(); /* 先建好音频对象，没点过页面时它是锁住的，按钮会显示“点一下解锁声音” */
 updateSoundBtn();
 setVol(volLevel);
+if (simState && simState.active) { simPanelOpen = true; document.getElementById('simPanel').style.display = 'block'; renderSimPanel(); }
 load();
 setInterval(load, 10000);
 </script>
