@@ -174,7 +174,7 @@
 
   <div class="livebar">
     <span class="pill-live" id="statusPill">同步中…</span>
-    <button class="btn btn-ghost" id="soundBtn" onclick="toggleSound()" title="他开新仓（含加仓）时响铃并语音播报开单内容；需保持本页面打开">🔔 开单提醒：关</button>
+    <button class="btn btn-ghost" id="soundBtn" onclick="toggleSound()" title="他开新仓/加仓或减仓/平仓时响铃并语音播报；开仓升调、平仓降调；需保持本页面打开">🔔 开平仓提醒：关</button>
     <select id="volSel" onchange="setVol(this.value)" title="提醒音量" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 6px;font-size:13px;cursor:pointer;"><option value="大">音量：大</option><option value="中">音量：中</option><option value="小">音量：小</option></select>
     <span><span class="lab">保证金 </span><b id="lbEquity">—</b></span>
     <span><span class="lab">持仓总价值 </span><b id="lbNotional">—</b></span>
@@ -245,11 +245,12 @@ const fmtTime = (s) => { if (!s) return '—'; const d = new Date(s); return isN
 const sideText = (sym, side) => sym.replace(/USDT$/, '') + (side === 'LONG' ? '多' : side === 'SHORT' ? '空' : '');
 let lastData = null, chartMode = 'roi';
 
-/* ---- 开单声音提醒 + 语音播报（WebAudio + speechSynthesis，无需音频文件） ----
+/* ---- 开平仓声音提醒 + 语音播报（WebAudio + speechSynthesis，无需音频文件） ----
    浏览器规定：声音只能在用户点过页面之后才能响。所以要先点一下
-   “开单提醒”按钮开启（点开时会响一声并说一句“开单提醒已开启”，确认
-   能听见），之后每 10 秒刷新时，一旦发现新的开仓/加仓事件就响铃并
-   语音播报开单内容。页面关了就没法响。
+   “开平仓提醒”按钮开启（点开时会响一声并说一句“开平仓提醒已开启”，确认
+   能听见），之后每 10 秒刷新时，一旦发现新的开仓/加仓事件就响开仓提示音
+   （升调）并语音播报开单内容，发现新的减仓/平仓事件就响平仓提示音
+   （降调）并语音播报平仓内容。页面关了就没法响。
    响度：改用方波（听感比正弦波响得多）+ 三轮双音 + 更长音长，默认
    音量“大”；下拉可调大/中/小。但最终仍受 Mac 系统音量限制，系统
    音量本身小的话，页面再响也有限。 */
@@ -281,7 +282,15 @@ function playOpenAlert() {
   const t = audioCtx.currentTime + 0.02;
   [0, 0.55, 1.10].forEach(off => { tone(880, t + off, 0.22); tone(1318.5, t + off + 0.26, 0.24); });
 }
-/* ---- 语音播报开单内容：如“熬鹰资本开空以太坊，336.08个，均价2235.33” ---- */
+/* 平仓提示音：和开仓反过来，先高后低，三轮，听着就能分辨是平仓 */
+function playCloseAlert() {
+  if (!soundOn) return;
+  ensureAudio();
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const t = audioCtx.currentTime + 0.02;
+  [0, 0.55, 1.10].forEach(off => { tone(1318.5, t + off, 0.22); tone(880, t + off + 0.26, 0.24); });
+}
+/* ---- 语音播报交易内容：开仓如“熬鹰资本开空以太坊，336.08个，均价2235.33”，平仓如“熬鹰资本平多英伟达，1276.46个，平仓价179.87” ---- */
 const SYM_CN = { ETH: '以太坊', BTC: '比特币', NVDA: '英伟达', SKHYNIX: 'SK海力士', SNDK: '闪迪', MU: '美光', ZEC: '大零币', HYPE: '海珀', CRCL: '瑟克' };
 function speak(text) {
   if (!soundOn || !('speechSynthesis' in window)) return;
@@ -298,9 +307,15 @@ function describeOpen(e) {
   const action = ACTION_LABEL[e.action] || '开仓';
   return '熬鹰资本' + action + name + '，' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + '个，均价' + fmt(e.price);
 }
+function describeClose(e) {
+  const sym = (e.symbol || '').replace(/USDT$/, '');
+  const name = SYM_CN[sym] || sym;
+  const action = ACTION_LABEL[e.action] || '平仓';
+  return '熬鹰资本' + action + name + '，' + fmt(e.quantity, e.quantity < 10 ? 3 : 2) + '个，平仓价' + fmt(e.price);
+}
 function updateSoundBtn() {
   const b = document.getElementById('soundBtn');
-  if (b) b.textContent = soundOn ? '🔔 开单提醒：开' : '🔔 开单提醒：关';
+  if (b) b.textContent = soundOn ? '🔔 开平仓提醒：开' : '🔔 开平仓提醒：关';
 }
 function setVol(v) {
   volLevel = v;
@@ -312,27 +327,37 @@ function toggleSound() {
   soundOn = !soundOn;
   localStorage.setItem('radar_sound', soundOn ? '1' : '0');
   updateSoundBtn();
-  if (soundOn) { playOpenAlert(); speak('开单提醒已开启'); } // 开启时响一声并说一句，确认能听见
+  if (soundOn) { playOpenAlert(); speak('开平仓提醒已开启'); } // 开启时响一声并说一句，确认能听见
 }
 /* 之前开着提醒、刷新后重进页面：任意点一下页面就恢复出声能力 */
 document.addEventListener('pointerdown', () => { if (soundOn) ensureAudio(); });
-/* 每 10 秒刷新时比对操作记录：出现新的开仓/加仓事件就响铃并语音播报。
+/* 每 10 秒刷新时比对操作记录：出现新的开仓/加仓事件就响开仓提示音（升调）
+   并语音播报，出现新的减仓/平仓事件就响平仓提示音（降调）并语音播报。
    只认直连上游的实时数据，快照不触发；首次加载只记基线，不响。 */
 function checkNewOpens(d) {
   if (!d.live || !Array.isArray(d.events)) return;
   let maxId = lastSeenEventId;
-  const fresh = [];
+  const freshOpens = [], freshCloses = [];
   for (const e of d.events) {
     if (typeof e.id !== 'number') continue;
-    if (lastSeenEventId !== null && e.id > lastSeenEventId && /OPEN|ADD/.test(e.action || '')) fresh.push(e);
+    if (lastSeenEventId !== null && e.id > lastSeenEventId) {
+      if (/OPEN|ADD/.test(e.action || '')) freshOpens.push(e);
+      else if (/REDUCE|CLOSE/.test(e.action || '')) freshCloses.push(e);
+    }
     if (maxId === null || e.id > maxId) maxId = e.id;
   }
   lastSeenEventId = maxId;
-  if (fresh.length) {
-    playOpenAlert();
-    fresh.sort((a, b) => a.id - b.id);
-    speak(fresh.slice(0, 2).map(describeOpen).join('；'));
+  if (!freshOpens.length && !freshCloses.length) return;
+  freshOpens.sort((a, b) => a.id - b.id);
+  freshCloses.sort((a, b) => a.id - b.id);
+  if (freshOpens.length) playOpenAlert();
+  if (freshCloses.length) {
+    if (freshOpens.length) setTimeout(playCloseAlert, 1800);
+    else playCloseAlert();
   }
+  const parts = freshOpens.slice(0, 2).map(describeOpen)
+    .concat(freshCloses.slice(0, 3).map(describeClose)).slice(0, 4);
+  speak(parts.join('；'));
 }
 
 /* ---- 收益率曲线（按截图走势还原） ---- */
