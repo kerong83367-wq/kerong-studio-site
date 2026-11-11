@@ -6,16 +6,16 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-12T01:21:03.768175+08:00",
-  "equity": 221265.22276425,
-  "equityUpdatedAt": "2026-11-12T01:21:03.768174+08:00",
-  "marginBalance": 221265.22276425,
-  "marginBalanceUpdatedAt": "2026-11-12T01:21:03.768174+08:00",
+  "lastUpdatedAt": "2026-11-12T07:31:54.417861+08:00",
+  "equity": 254508.31026823,
+  "equityUpdatedAt": "2026-11-12T07:31:54.41786+08:00",
+  "marginBalance": 254508.31026823,
+  "marginBalanceUpdatedAt": "2026-11-12T07:31:54.41786+08:00",
   "equityStale": false,
-  "effectiveLeverage": 6.739858619349873,
+  "effectiveLeverage": 5.7078760247125455,
   "valuationComplete": true,
-  "notional": 1491296.31881,
-  "unrealizedPnl": -10290.372737679838,
+  "notional": 1452701.8822701317,
+  "unrealizedPnl": 28304.063802188226,
   "positionCount": 2,
   "positions": [
     {
@@ -24,14 +24,14 @@
       "quantity": 518.692,
       "quantityUnit": "币",
       "entryPrice": 2084.255877467611,
-      "markPrice": 2092.16,
+      "markPrice": 2053.57386822,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 1085186.65472,
-      "unrealizedPnl": -4099.805124569921,
+      "notional": 1065172.3368547682,
+      "unrealizedPnl": 15914.51274066182,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-11T17:21:00.685319877Z",
-      "updatedAt": "2026-11-12T01:21:03.767513+08:00"
+      "priceUpdatedAt": "2026-11-11T23:32:04.363733139Z",
+      "updatedAt": "2026-11-12T07:31:54.417031+08:00"
     },
     {
       "symbol": "ZECUSDT",
@@ -39,14 +39,14 @@
       "quantity": 399.789,
       "quantityUnit": "币",
       "entryPrice": 1000.3254128475022,
-      "markPrice": 1015.81,
+      "markPrice": 969.33518785,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 406109.66409,
-      "unrealizedPnl": -6190.567613109918,
+      "notional": 387529.5454153636,
+      "unrealizedPnl": 12389.551061526405,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-11T17:21:00.685319877Z",
-      "updatedAt": "2026-11-12T01:21:03.767704+08:00"
+      "priceUpdatedAt": "2026-11-11T23:32:04.363733139Z",
+      "updatedAt": "2026-11-12T07:31:54.417247+08:00"
     }
   ],
   "events": [
@@ -3557,9 +3557,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-11T17:19:34.184Z",
+    "updatedAt": "2026-11-11T23:27:57.945Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-12T01:21:05.761626+08:00",
+  "fetchedAt": "2026-11-12T07:32:05.713388+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
