@@ -6,16 +6,16 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-13T04:22:59.141956+08:00",
-  "equity": 276179.8668687,
-  "equityUpdatedAt": "2026-11-13T04:22:59.141953+08:00",
-  "marginBalance": 276179.8668687,
-  "marginBalanceUpdatedAt": "2026-11-13T04:22:59.141953+08:00",
+  "lastUpdatedAt": "2026-11-13T09:15:48.748937+08:00",
+  "equity": 278625.50742617,
+  "equityUpdatedAt": "2026-11-13T09:15:48.748937+08:00",
+  "marginBalance": 278625.50742617,
+  "marginBalanceUpdatedAt": "2026-11-13T09:15:48.748937+08:00",
   "equityStale": false,
-  "effectiveLeverage": 5.897136594238311,
+  "effectiveLeverage": 5.841558392084969,
   "valuationComplete": true,
-  "notional": 1628670.3995032758,
-  "unrealizedPnl": 52292.98649621832,
+  "notional": 1627607.1711542762,
+  "unrealizedPnl": 53356.214845217866,
   "positionCount": 3,
   "positions": [
     {
@@ -24,14 +24,14 @@
       "quantity": 518.692,
       "quantityUnit": "币",
       "entryPrice": 2084.255877467611,
-      "markPrice": 2020.37694574,
+      "markPrice": 2008.82426357,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 1047953.3587397721,
-      "unrealizedPnl": 33133.49085565787,
+      "notional": 1041961.0749196504,
+      "unrealizedPnl": 39125.77467577952,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-12T20:23:05.734980593Z",
-      "updatedAt": "2026-11-13T04:22:59.141082+08:00"
+      "priceUpdatedAt": "2026-11-13T01:15:50.487324962Z",
+      "updatedAt": "2026-11-13T09:15:48.748257+08:00"
     },
     {
       "symbol": "SPCXUSDT",
@@ -39,14 +39,14 @@
       "quantity": 1425.1699999999998,
       "quantityUnit": "币",
       "entryPrice": 140.3042724216578,
-      "markPrice": 140.49020539,
+      "markPrice": 142.77300074,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 200222.42601566628,
-      "unrealizedPnl": -264.9860884922537,
+      "notional": 203475.79746462576,
+      "unrealizedPnl": -3518.357537451734,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-12T20:23:05.734980593Z",
-      "updatedAt": "2026-11-13T04:22:59.141346+08:00"
+      "priceUpdatedAt": "2026-11-13T01:15:50.487324962Z",
+      "updatedAt": "2026-11-13T09:15:48.748477+08:00"
     },
     {
       "symbol": "ZECUSDT",
@@ -54,14 +54,14 @@
       "quantity": 399.789,
       "quantityUnit": "币",
       "entryPrice": 1000.3254128475022,
-      "markPrice": 951.73857897,
+      "markPrice": 955.93,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 380494.61474783736,
-      "unrealizedPnl": 19424.48172905271,
+      "notional": 382170.29877,
+      "unrealizedPnl": 17748.79770689008,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-12T20:23:05.734980593Z",
-      "updatedAt": "2026-11-13T04:22:59.141415+08:00"
+      "priceUpdatedAt": "2026-11-13T01:15:50.487324962Z",
+      "updatedAt": "2026-11-13T09:15:48.748495+08:00"
     }
   ],
   "events": [
@@ -3572,9 +3572,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-12T20:18:32.113Z",
+    "updatedAt": "2026-11-13T01:12:38.438Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-13T04:23:08.287796+08:00",
+  "fetchedAt": "2026-11-13T09:15:54.931827+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
