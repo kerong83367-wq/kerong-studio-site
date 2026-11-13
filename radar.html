@@ -947,7 +947,7 @@ async function fetchMarks() {
   return any;
 }
 function applyMarks(d) {
-  if (d && d.positions) d.positions.forEach(p => { const m = liveMarks[p.symbol]; if (m) p.markPrice = m; });
+  if (d && d.positions) d.positions.forEach(p => { const m = liveMarks[p.symbol]; if (m) { p.markPrice = m; if (isFinite(p.entryPrice) && isFinite(p.quantity)) p.unrealizedPnl = (m - p.entryPrice) * p.quantity * (p.side === 'LONG' ? 1 : -1); } });
   /* 模拟单独持有的品种（他已平、事件还没同步过来的极短窗口）也刷一下，止盈止损 / 爆仓检查用的是模拟自己的标记价 */
   if (simState && simState.positions) for (const k in simState.positions) { const sp = simState.positions[k]; const m = liveMarks[sp.symbol]; if (m) sp.markPrice = m; }
 }
