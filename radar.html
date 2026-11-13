@@ -229,7 +229,7 @@
   </div>
 
   <footer>
-    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 10 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3 分钟。标记价与浮盈亏为上游估算，未计手续费及资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
+    数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 10 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3 分钟。标记价为页面直连币安的实时价（约 5 秒更新一次），直连失败时回落上游估算价；浮盈亏按标记价计算，未计资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
     本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
@@ -923,6 +923,34 @@ function renderStats(st) {
 // Worker 服务端调同一接口会被币安 403（共享出口 IP 被拦），所以表现数字走浏览器直连；
 // 失败时不报错，页面保留 Worker 给的数字或写死值。
 const BINANCE_PERF = 'https://www.binance.com/bapi/futures/v1/public/future/copy-trade/lead-portfolio/performance?portfolioId=5075281354358777856&timeRange=30D';
+/* ---- 实时标记价：浏览器直连币安公开行情（premiumIndex）。
+   fapi.binance.com 直连按地区返回 451，所以走 www.binance.com 镜像，和上面的表现接口同一条路，已实测可通（含 SPCX 等股票代币）。
+   只拉当前持仓 / 模拟持仓涉及的品种，约 5 秒一轮；拉不到就继续用上游估算价，不报错。 ---- */
+const MARK_API = 'https://www.binance.com/fapi/v1/premiumIndex?symbol=';
+const liveMarks = {};
+async function fetchMarks() {
+  const syms = {};
+  if (lastData && lastData.positions) lastData.positions.forEach(p => { syms[p.symbol] = true; });
+  if (simState && simState.positions) for (const k in simState.positions) syms[simState.positions[k].symbol] = true;
+  const list = Object.keys(syms);
+  if (!list.length) return false;
+  let any = false;
+  await Promise.all(list.map(async s => {
+    try {
+      const r = await fetch(MARK_API + encodeURIComponent(s), { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      const p = parseFloat(d && d.markPrice);
+      if (isFinite(p) && p > 0) { liveMarks[s] = p; any = true; }
+    } catch (e) { /* 单个品种失败不影响其他品种 */ }
+  }));
+  return any;
+}
+function applyMarks(d) {
+  if (d && d.positions) d.positions.forEach(p => { const m = liveMarks[p.symbol]; if (m) p.markPrice = m; });
+  /* 模拟单独持有的品种（他已平、事件还没同步过来的极短窗口）也刷一下，止盈止损 / 爆仓检查用的是模拟自己的标记价 */
+  if (simState && simState.positions) for (const k in simState.positions) { const sp = simState.positions[k]; const m = liveMarks[sp.symbol]; if (m) sp.markPrice = m; }
+}
 async function loadStatsFromBinance() {
   try {
     const r = await fetch(BINANCE_PERF, {cache: 'no-store'});
@@ -939,6 +967,8 @@ async function loadStatsFromBinance() {
 async function load() {
   // 表现数字浏览器直连币安（与仓位数据并行，不阻塞）
   loadStatsFromBinance();
+  // 实时标记价也并行拉（用上一轮的持仓品种清单），渲染前覆盖上游估算价
+  const marksPromise = fetchMarks();
   // 先走 Worker 直连上游（页面每 10 秒刷新），直连失败再读 5 分钟快照文件
   try {
     const r = await fetch(AUTH_API + '/api/radar', {cache: 'no-store'});
@@ -946,15 +976,22 @@ async function load() {
     const d = await r.json();
     if (d.ok === false || d.id !== 2) throw new Error('bad live data');
     document.getElementById('errBox').style.display = 'none';
+    lastData = d;
+    await marksPromise;
+    applyMarks(d);
     render(d);
-    document.getElementById('liveNote').textContent = '直连上游 · 每 10 秒刷新';
+    document.getElementById('liveNote').textContent = '直连上游 · 每 10 秒刷新 · 标记价直连币安约 5 秒';
     return;
   } catch (e) { /* 直连失败，读快照 */ }
   try {
     const r = await fetch(DATA_URL + '?t=' + Date.now(), {cache: 'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     document.getElementById('errBox').style.display = 'none';
-    render(await r.json());
+    const sd = await r.json();
+    lastData = sd;
+    await marksPromise;
+    applyMarks(sd);
+    render(sd);
     document.getElementById('liveNote').textContent = '直连失败，读 5 分钟快照 · 页面每 10 秒刷新';
   } catch (e) { document.getElementById('errBox').style.display = 'block'; }
 }
@@ -1043,6 +1080,14 @@ setVol(volLevel);
 if (simState && simState.active) { simPanelOpen = true; document.getElementById('simPanel').style.display = 'block'; renderSimPanel(); }
 load();
 setInterval(load, 10000);
+/* 标记价单独 5 秒一轮：只重渲染、不重拉仓位数据；正在填止盈 / 止损输入框时跳过这一轮，免得冲掉输入 */
+setInterval(async () => {
+  if (!lastData) return;
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'INPUT') return;
+  const ok = await fetchMarks();
+  if (ok) { applyMarks(lastData); render(lastData); }
+}, 5000);
 </script>
 </body>
 </html>
