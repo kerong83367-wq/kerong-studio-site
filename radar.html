@@ -930,8 +930,14 @@ let liveStatus = null;
 function escHtml(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function toggleLivePanel() {
   livePanelOpen = !livePanelOpen;
-  document.getElementById('livePanel').style.display = livePanelOpen ? 'block' : 'none';
-  if (livePanelOpen) { renderLivePanel(); refreshLiveStatus(); }
+  const panel = document.getElementById('livePanel');
+  panel.style.display = livePanelOpen ? 'block' : 'none';
+  if (livePanelOpen) {
+    renderLivePanel();
+    refreshLiveStatus();
+    // 面板在页面中段，不滚动的话点按钮像没反应；打开后自动滚到面板处
+    setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }
 }
 async function copyApi(path, method, body) {
   const token = localStorage.getItem('radar_token');
