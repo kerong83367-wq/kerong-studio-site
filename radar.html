@@ -140,7 +140,7 @@
       <div class="tags"><span class="tag">10倍-20倍杠杆</span><span class="tag gray">TradFi</span><span class="tag gray">API交易</span><span class="tag gray">全场最佳</span><span class="tag gray">赚钱机器</span></div>
     </div>
     <div class="actions">
-      <a class="btn" id="followBtn" href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">开启跟单</a>
+      <button class="btn" id="followBtn" onclick="toggleLivePanel()">开启跟单</button>
       <button class="btn btn-yellow" id="simBtn" onclick="toggleSimPanel()">模拟跟单</button>
       <a class="btn" href="https://coin.911quant.com/" target="_blank" rel="noopener">对比</a>
     </div>
@@ -201,6 +201,7 @@
     <span><span class="lab">当前浮盈亏 </span><b id="lbPnl">—</b></span>
     <span style="margin-left:auto;color:var(--muted);font-size:13px;">数据更新于 <b id="updatedAt" style="color:var(--text);">—</b> · <span id="liveNote">直连上游 · 每 10 秒刷新</span></span>
   </div>
+  <div id="livePanel" style="display:none"></div>
   <div id="simPanel" style="display:none"></div>
   <div class="err" id="errBox">刚才那次刷新没拿到新数据，显示的是上一次快照，稍后会自动再试。</div>
 
@@ -230,7 +231,7 @@
 
   <footer>
     数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 10 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3 分钟。标记价为页面直连币安的实时价（约 5 秒更新一次），直连失败时回落上游估算价；浮盈亏按标记价计算，未计资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
-    本站为公开数据展示页，非币安官方页面；“开启跟单”与“注册 / 登录”中的跟单、开户操作均在币安官网完成，本站不碰资金、不代操作。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
+    本站为公开数据展示页，非币安官方页面。实盘跟单为可选功能：币安官方跟单名额已满，用户可自行在币安创建 API 密钥（只开合约交易权限、务必关闭提现）并绑定到本站，由本站执行器按用户设定的参数自动镜像下单；资金始终在用户自己的币安账户内，本站不托管资金、不保证收益。模拟跟单为虚拟练习，不涉及真实资金。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
 </div>
@@ -919,6 +920,158 @@ function renderStats(st) {
   if (st.mockCopiers !== undefined) set('srMock', fmt(st.mockCopiers, 0));
   set('srClosed', String(st.trades));
 }
+/* ================= 实盘跟单（API 自动执行）子页面 =================
+   「开启跟单」按钮打开。币安官方跟单名额已满，这条路线是：用户把
+   自己币安 API 密钥（只开合约、关提现）绑定到本站账号，后端执行器
+   每分钟对账镜像下单。面板只做绑定、参数、状态、日志与急停；
+   密钥只经 HTTPS 传后端、存后端，页面永不保存、永不回显。 */
+let livePanelOpen = false;
+let liveStatus = null;
+function escHtml(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function toggleLivePanel() {
+  livePanelOpen = !livePanelOpen;
+  document.getElementById('livePanel').style.display = livePanelOpen ? 'block' : 'none';
+  if (livePanelOpen) { renderLivePanel(); refreshLiveStatus(); }
+}
+async function copyApi(path, method, body) {
+  const token = localStorage.getItem('radar_token');
+  const opts = { method: method || 'GET', headers: { 'Authorization': 'Bearer ' + token } };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(AUTH_API + path, opts);
+  return r.json();
+}
+async function refreshLiveStatus() {
+  if (!localStorage.getItem('radar_token')) { liveStatus = null; renderLivePanel(); return; }
+  try { liveStatus = await copyApi('/api/copy/status'); }
+  catch (e) { liveStatus = { ok: false, error: '连不上后端，请稍后再试。' }; }
+  renderLivePanel();
+}
+function liveBadge() {
+  if (!liveStatus || !liveStatus.bound) return '未绑定';
+  const s = liveStatus.settings || {};
+  if (s.enabled && s.dryRun) return '演练中（不下真单）';
+  if (s.enabled && !s.dryRun) return '实盘运行中';
+  return '已绑定 · 未启用';
+}
+function renderLivePanel() {
+  const panel = document.getElementById('livePanel');
+  if (!panel) return;
+  if (!localStorage.getItem('radar_token')) {
+    panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行</h2>' +
+      '<p style="color:var(--muted);font-size:14px;line-height:1.7">请先用右上角的本站账号登录。API 密钥、跟单参数和执行状态都挂在你的本站账号下，登录后才能绑定。</p></div>';
+    return;
+  }
+  if (!liveStatus) {
+    panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行</h2><p style="color:var(--muted)">正在读取状态…</p></div>';
+    return;
+  }
+  if (liveStatus.ok === false) {
+    panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行</h2><p class="red">' + escHtml(liveStatus.error || '读取状态失败') + '</p></div>';
+    return;
+  }
+  const riskNote = '<p class="hist-note" style="margin-top:10px">怎么跟：执行器每分钟把你的合约账户仓位对齐到他的仓位，比例 = 跟单资金上限 ÷ 他的当前权益；他开仓后上游约 2–3 分钟才检出，再加每分钟一轮的对账，入场天然比他慢几分钟、有滑点，跟模拟的口径一致但更慢。风险：他是超高杠杆打法（历史最大回撤约 49%），跟单可能爆仓；先用演练模式看几天日志，再用小额实盘。密钥安全：执行器在云端运行、出口 IP 不固定，密钥无法设 IP 白名单，所以创建密钥时只勾「合约交易」、绝不要开提现；建议专门开一个币安子账户跟单，跟单执行器只动它持有或跟过的品种，你自己手动开的其他品种不会被碰，但同一品种的手动仓会和跟单仓合并计算。</p>';
+  if (!liveStatus.bound) {
+    panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行 <span class="right">未绑定</span></h2>' +
+      '<p style="font-size:14px;line-height:1.8">币安官方跟单名额已满（1000/1000），这里走 API 自动跟单：把你币安的 API 密钥绑定到本站，后端执行器按你设定的金额自动镜像他的仓位，资金一直在你自己的币安账户里。</p>' +
+      '<p style="font-size:14px;line-height:1.8;color:var(--muted)">创建密钥：币安 App 或网页 → 头像 → API 管理 → 创建 API → 权限只勾选<b style="color:var(--text)">「启用合约」</b>，<b style="color:var(--text)">不要勾提现</b>；如遇 IP 限制选项选不限制。创建后把 API Key 和 Secret 填到下面（只传给本站后端保存，页面不留存）。</p>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;max-width:520px">' +
+      '<input id="cpKey" type="text" autocomplete="off" placeholder="API Key" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px">' +
+      '<input id="cpSecret" type="password" autocomplete="off" placeholder="API Secret（只传后端保存，不会回显）" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px">' +
+      '<div><button class="btn btn-yellow" onclick="bindCopy()">绑定并检测</button> <span id="cpBindMsg" style="font-size:13px;color:var(--muted)"></span></div>' +
+      '</div>' + riskNote + '</div>';
+    return;
+  }
+  const s = liveStatus.settings || { capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
+  const st = liveStatus.state || {};
+  const pos = st.positions || [];
+  const posHtml = pos.length === 0 ? '<div class="empty-box">合约账户当前无仓位（或执行器还没跑过第一轮，点「立即同步一轮」）。</div>' :
+    '<table><thead><tr><th>币种 / 方向</th><th>数量</th><th>开仓均价</th><th>标记价</th><th>浮动盈亏</th><th>归属</th></tr></thead><tbody>' +
+    pos.map(p => '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.qty, p.qty < 10 ? 3 : 2) + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(p.markPrice) + ' U</td><td class="' + (p.unrealizedPnl > 0 ? 'green' : p.unrealizedPnl < 0 ? 'red' : '') + '">' + fmtSigned(p.unrealizedPnl) + ' U</td><td>' + (p.managed ? '跟单' : '手动') + '</td></tr>').join('') + '</tbody></table>';
+  const log = st.log || [];
+  const logHtml = log.length === 0 ? '<p style="color:var(--muted);font-size:13px">暂无执行记录。</p>' :
+    '<table><thead><tr><th>时间</th><th>动作</th><th>币种 / 方向</th><th>数量</th><th>价格</th><th>说明</th></tr></thead><tbody>' +
+    log.slice(0, 15).map(l => '<tr><td>' + fmtDT(l.at) + '</td><td>' + escHtml(l.action) + '</td><td>' + (l.symbol ? sideText(l.symbol, l.side || 'LONG') : '—') + '</td><td>' + (l.qty !== undefined && l.qty !== null ? fmt(l.qty, l.qty < 10 ? 3 : 2) : '—') + '</td><td>' + (l.price ? fmtPrice(l.price) + ' U' : '—') + '</td><td style="font-size:12px;color:var(--muted)">' + escHtml(l.note || '') + '</td></tr>').join('') + '</tbody></table>';
+  panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行 <span class="right">' + liveBadge() + '</span></h2>' +
+    '<div class="simstats">' +
+    '<span>密钥 <b>····' + escHtml(liveStatus.keyLast4 || '') + '</b></span>' +
+    '<span>合约可用 <b>' + (st.account ? fmt(st.account.usdtAvailable) + ' U' : '—') + '</b></span>' +
+    '<span>上次执行 <b>' + (st.lastRun ? fmtDT(st.lastRun) : '还没跑过') + '</b></span>' +
+    (st.lastError ? '<span>最近异常 <b class="red">' + escHtml(st.lastError) + '</b></span>' : '<span>最近异常 <b>无</b></span>') +
+    '</div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:6px">' +
+    '<label style="font-size:13px;color:var(--muted)">跟单资金上限 (USDT)<br><input id="cpCap" type="number" min="50" max="100000" step="10" value="' + s.capitalCap + '" style="width:130px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
+    '<label style="font-size:13px;color:var(--muted)">杠杆模式<br><select id="cpLevMode" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"><option value="fixed"' + (s.leverageMode === 'fixed' ? ' selected' : '') + '>固定杠杆</option><option value="follow"' + (s.leverageMode === 'follow' ? ' selected' : '') + '>跟随他的实际杠杆（封顶 10）</option></select></label>' +
+    '<label style="font-size:13px;color:var(--muted)">固定杠杆 (1–10)<br><input id="cpLev" type="number" min="1" max="10" step="1" value="' + s.fixedLeverage + '" style="width:90px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
+    '<label style="font-size:13px;color:var(--muted)">执行模式<br><select id="cpDry" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"><option value="1"' + (s.dryRun ? ' selected' : '') + '>演练（只记日志，不下真单）</option><option value="0"' + (!s.dryRun ? ' selected' : '') + '>实盘（真实下单）</option></select></label>' +
+    '<button class="btn btn-ghost" onclick="saveCopySettings()">保存参数</button>' +
+    (s.enabled ? '<button class="btn btn-ghost" onclick="setCopyEnabled(false)">停止跟单</button>' : '<button class="btn btn-yellow" onclick="setCopyEnabled(true)">启用跟单</button>') +
+    '<button class="btn btn-ghost" onclick="runCopyNow()">立即同步一轮</button>' +
+    '</div>' +
+    '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位（币安实时）</h3>' + posHtml +
+    '<h3 style="margin:16px 0 8px;font-size:15px">执行日志</h3>' + logHtml +
+    '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">' +
+    '<button class="btn btn-ghost" style="border-color:var(--red);color:var(--red)" onclick="closeAllCopy()">一键平仓跟单仓位并停止</button>' +
+    '<button class="btn btn-ghost" onclick="unbindCopy()">解绑密钥</button>' +
+    '</div>' + riskNote + '</div>';
+}
+async function bindCopy() {
+  const key = document.getElementById('cpKey').value.trim();
+  const secret = document.getElementById('cpSecret').value.trim();
+  const msg = document.getElementById('cpBindMsg');
+  if (!key || !secret) { msg.textContent = '先把 Key 和 Secret 都填上。'; return; }
+  msg.textContent = '正在检测密钥…';
+  try {
+    const res = await copyApi('/api/copy/bind', 'POST', { apiKey: key, apiSecret: secret });
+    if (!res.ok) { msg.textContent = res.error || '绑定失败。'; return; }
+    msg.textContent = res.note || '绑定成功。';
+    document.getElementById('cpSecret').value = '';
+    refreshLiveStatus();
+  } catch (e) { msg.textContent = '请求失败，请稍后再试。'; }
+}
+async function saveCopySettings() {
+  const dryVal = document.getElementById('cpDry').value === '1';
+  const wasLive = liveStatus && liveStatus.settings && !liveStatus.settings.dryRun;
+  if (!dryVal && !wasLive && liveStatus.settings && liveStatus.settings.dryRun) {
+    if (!confirm('切换到实盘模式后，执行器会用你币安账户里的真实资金下单。确定要切到实盘吗？')) return;
+  }
+  const body = {
+    capitalCap: parseFloat(document.getElementById('cpCap').value),
+    leverageMode: document.getElementById('cpLevMode').value,
+    fixedLeverage: parseInt(document.getElementById('cpLev').value, 10),
+    dryRun: dryVal,
+  };
+  const res = await copyApi('/api/copy/settings', 'POST', body);
+  if (!res.ok) { alert(res.error || '保存失败'); return; }
+  refreshLiveStatus();
+}
+async function setCopyEnabled(on) {
+  if (on && liveStatus.settings && !liveStatus.settings.dryRun) {
+    if (!confirm('启用后执行器将按当前参数实盘跟单（真实下单）。确定启用？')) return;
+  }
+  const res = await copyApi('/api/copy/settings', 'POST', { enabled: on });
+  if (!res.ok) { alert(res.error || '操作失败'); return; }
+  refreshLiveStatus();
+}
+async function runCopyNow() {
+  const res = await copyApi('/api/copy/run', 'POST', {});
+  if (!res.ok) { alert(res.error || '同步失败'); return; }
+  refreshLiveStatus();
+}
+async function closeAllCopy() {
+  if (!confirm('这会立刻用市价单平掉所有「跟单」归属的仓位（手动仓不动），并停止跟单。确定？')) return;
+  const res = await copyApi('/api/copy/closeall', 'POST', {});
+  if (!res.ok) { alert(res.error || '平仓失败'); return; }
+  const parts = (res.results || []).map(r => r.symbol + (r.ok ? ' 已平' : ' 失败：' + (r.error || '')));
+  alert(parts.length ? '已执行：' + parts.join('；') : '没有需要平的跟单仓位。');
+  refreshLiveStatus();
+}
+async function unbindCopy() {
+  if (!confirm('解绑后本站会删除保存的 API 密钥，执行器停止。确定解绑？')) return;
+  const res = await copyApi('/api/copy/unbind', 'POST', {});
+  if (!res.ok) { alert(res.error || '解绑失败'); return; }
+  refreshLiveStatus();
+}
+
 // 30 天表现数据：浏览器直连币安官方 performance 接口（币安对该接口开了 CORS: *）。
 // Worker 服务端调同一接口会被币安 403（共享出口 IP 被拦），所以表现数字走浏览器直连；
 // 失败时不报错，页面保留 Worker 给的数字或写死值。
