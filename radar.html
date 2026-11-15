@@ -1306,6 +1306,21 @@ setInterval(async () => {
   const ok = await fetchMarks();
   if (ok) { applyMarks(lastData); render(lastData); }
 }, 5000);
+/* 实盘跟单面板打开时每 5 秒刷新一次状态（仓位 / 浮盈 / 日志）；数据没变化就不重渲染，免得页面闪；
+   正在填输入框时跳过这一轮，免得冲掉正在输入的止盈止损等内容 */
+let liveRefreshBusy = false;
+setInterval(async () => {
+  if (!livePanelOpen || liveRefreshBusy) return;
+  if (!localStorage.getItem('radar_token')) return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+  liveRefreshBusy = true;
+  try {
+    const fresh = await copyApi('/api/copy/status');
+    if (JSON.stringify(fresh) !== JSON.stringify(liveStatus)) { liveStatus = fresh; renderLivePanel(); }
+  } catch (e) { /* 网络抖动时静默，下一轮再试 */ }
+  finally { liveRefreshBusy = false; }
+}, 5000);
 </script>
 </body>
 </html>
