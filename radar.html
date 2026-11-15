@@ -1016,12 +1016,16 @@ function renderLivePanel() {
     pos.map(p => {
       const key = p.symbol + '_' + p.side;
       const g = (liveStatus.guards && liveStatus.guards.tpsl && liveStatus.guards.tpsl[key]) || {};
+      // 标记价和浮盈优先用页面直连的实时价（约 5 秒一轮）；执行器存的快照最长 10 分钟才更新一次，只作兜底
+      const lm = liveMarks[p.symbol];
+      const dispMark = lm || p.markPrice;
+      const dispPnl = (lm && isFinite(p.entryPrice)) ? (lm - p.entryPrice) * p.qty * (p.side === 'LONG' ? 1 : -1) : p.unrealizedPnl;
       const ctl = p.managed ?
         '<td><input type="number" step="any" min="0" id="cptp_' + key + '" value="' + (g.tp || '') + '" placeholder="不设" onchange="saveCopyTpSl(\'' + p.symbol + '\',\'' + p.side + '\')" style="width:96px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:13px"></td>' +
         '<td><input type="number" step="any" min="0" id="cpsl_' + key + '" value="' + (g.sl || '') + '" placeholder="不设" onchange="saveCopyTpSl(\'' + p.symbol + '\',\'' + p.side + '\')" style="width:96px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:13px"></td>' +
         '<td><button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="closeCopyPos(\'' + p.symbol + '\',\'' + p.side + '\')">平仓</button></td>'
         : '<td>—</td><td>—</td><td>—</td>';
-      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.qty, p.qty < 10 ? 3 : 2) + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(p.markPrice) + ' U</td><td class="' + (p.unrealizedPnl > 0 ? 'green' : p.unrealizedPnl < 0 ? 'red' : '') + '">' + fmtSigned(p.unrealizedPnl) + ' U</td><td>' + (p.managed ? '跟单' : '手动') + '</td>' + ctl + '</tr>';
+      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.qty, p.qty < 10 ? 3 : 2) + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(dispMark) + ' U</td><td class="' + (dispPnl > 0 ? 'green' : dispPnl < 0 ? 'red' : '') + '">' + fmtSigned(dispPnl) + ' U</td><td>' + (p.managed ? '跟单' : '手动') + '</td>' + ctl + '</tr>';
     }).join('') + '</tbody></table>';
   const lockedKeys = Object.keys((liveStatus.guards && liveStatus.guards.locked) || {});
   const lockedHtml = lockedKeys.length === 0 ? '' :
@@ -1150,6 +1154,7 @@ async function fetchMarks() {
   const syms = {};
   if (lastData && lastData.positions) lastData.positions.forEach(p => { syms[p.symbol] = true; });
   if (simState && simState.positions) for (const k in simState.positions) syms[simState.positions[k].symbol] = true;
+  if (liveStatus && liveStatus.state && liveStatus.state.positions) liveStatus.state.positions.forEach(p => { syms[p.symbol] = true; });
   const list = Object.keys(syms);
   if (!list.length) return false;
   let any = false;
@@ -1304,7 +1309,11 @@ setInterval(async () => {
   const ae = document.activeElement;
   if (ae && ae.tagName === 'INPUT') return;
   const ok = await fetchMarks();
-  if (ok) { applyMarks(lastData); render(lastData); }
+  if (ok) {
+    applyMarks(lastData); render(lastData);
+    // 实盘面板开着时跟着实时价一起重渲染（标记价 / 浮盈约 5 秒一跳）；焦点在下拉框上时跳过，免得打断操作
+    if (livePanelOpen && !(document.activeElement && document.activeElement.tagName === 'SELECT')) renderLivePanel();
+  }
 }, 5000);
 /* 实盘跟单面板打开时每 5 秒刷新一次状态（仓位 / 浮盈 / 日志）；数据没变化就不重渲染，免得页面闪；
    正在填输入框时跳过这一轮，免得冲掉正在输入的止盈止损等内容 */
