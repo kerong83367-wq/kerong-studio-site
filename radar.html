@@ -344,7 +344,6 @@ function updateSoundBtn() {
   const b = document.getElementById('soundBtn');
   if (!b) return;
   if (!soundOn) b.textContent = '🔔 开平仓提醒：关';
-  else if (!audioCtx || audioCtx.state !== 'running') b.textContent = '🔔 点一下页面解锁声音';
   else b.textContent = '🔔 开平仓提醒：开';
 }
 function setVol(v) {
