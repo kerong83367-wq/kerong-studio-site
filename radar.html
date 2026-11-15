@@ -231,7 +231,7 @@
 
   <footer>
     数据说明：币安把该组合的实时持仓设为私密，直接查不到；本站按公开成交记录反推持仓，有买入没卖出就判定为仍持有，有卖出就判定为减仓 / 平仓。页面每 10 秒直连上游刷新（直连失败时自动读 5 分钟快照文件兜底）。开仓动作一般在上游 2–3 分钟后检出，看到新动作最晚约 3 分钟。标记价为页面直连币安的实时价（约 5 秒更新一次），直连失败时回落上游估算价；浮盈亏按标记价计算，未计资金费。30 天项目表现、跟单人数、资产管理规模为币安官方数据（经币安官方接口同步，约 10 分钟刷新一次）；资产偏好环形图与收益率曲线为 2026-11-06 币安页面截图数据，仅供参考。<br>
-    本站为公开数据展示页，非币安官方页面。实盘跟单为可选功能：币安官方跟单名额已满，用户可自行在币安创建 API 密钥（只开合约交易权限、务必关闭提现）并绑定到本站，由本站执行器按用户设定的参数自动镜像下单；资金始终在用户自己的币安账户内，本站不托管资金、不保证收益。模拟跟单为虚拟练习，不涉及真实资金。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
+    本站为公开数据展示页，非交易所官方页面。实盘跟单为可选功能：币安官方跟单名额已满，用户可自行在币安或欧易创建 API 密钥（只开交易权限、务必关闭提现）并绑定到本站，由本站执行器按用户设定的参数自动镜像下单；资金始终在用户自己的交易所账户内，本站不托管资金、不保证收益。模拟跟单为虚拟练习，不涉及真实资金。交易有风险，请独立判断；带单员本人提示：超高杠杆，不建议跟。<br>
     快照文件：<span id="snapshotAt">—</span> · 数据源：<a href="https://coin.911quant.com/" target="_blank" rel="noopener">持仓雷达</a> · <a href="https://www.binance.com/zh-CN/copy-trading/lead-details/5075281354358777856?timeRange=30D" target="_blank" rel="noopener">币安带单主页</a> · <a href="https://xiaoxiaoke.ccwu.cc/">回 Kerong Studio 首页</a>
   </footer>
 </div>
@@ -922,11 +922,18 @@ function renderStats(st) {
 }
 /* ================= 实盘跟单（API 自动执行）子页面 =================
    「开启跟单」按钮打开。币安官方跟单名额已满，这条路线是：用户把
-   自己币安 API 密钥（只开合约、关提现）绑定到本站账号，后端执行器
-   每分钟对账镜像下单。面板只做绑定、参数、状态、日志与急停；
-   密钥只经 HTTPS 传后端、存后端，页面永不保存、永不回显。 */
+   自己交易所（币安或欧易）API 密钥（只开交易、关提现）绑定到本站
+   账号，后端执行器每分钟对账镜像下单。面板只做绑定、参数、状态、
+   日志与急停；密钥只经 HTTPS 传后端、存后端，页面永不保存、永不回显。 */
 let livePanelOpen = false;
 let liveStatus = null;
+let bindExchSel = 'binance';
+function bindExchChanged() {
+  bindExchSel = document.getElementById('cpExch').value === 'okx' ? 'okx' : 'binance';
+  document.getElementById('cpGuideBn').style.display = bindExchSel === 'binance' ? '' : 'none';
+  document.getElementById('cpGuideOkx').style.display = bindExchSel === 'okx' ? '' : 'none';
+  document.getElementById('cpPass').style.display = bindExchSel === 'okx' ? '' : 'none';
+}
 function escHtml(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function toggleLivePanel() {
   livePanelOpen = !livePanelOpen;
@@ -975,14 +982,17 @@ function renderLivePanel() {
     panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行</h2><p class="red">' + escHtml(liveStatus.error || '读取状态失败') + '</p></div>';
     return;
   }
-  const riskNote = '<p class="hist-note" style="margin-top:10px">怎么跟：执行器每分钟把你的合约账户仓位对齐到他的仓位，比例 = 跟单资金上限 ÷ 他的当前权益；他开仓后上游约 2–3 分钟才检出，再加每分钟一轮的对账，入场天然比他慢几分钟、有滑点，跟模拟的口径一致但更慢。风险：他是超高杠杆打法（历史最大回撤约 49%），跟单可能爆仓；先用演练模式看几天日志，再用小额实盘。密钥安全：执行器在云端运行、出口 IP 不固定，密钥无法设 IP 白名单，所以创建密钥时只勾「合约交易」、绝不要开提现；建议专门开一个币安子账户跟单，跟单执行器只动它持有或跟过的品种，你自己手动开的其他品种不会被碰，但同一品种的手动仓会和跟单仓合并计算。</p>';
+  const riskNote = '<p class="hist-note" style="margin-top:10px">怎么跟：执行器每分钟把你的合约账户仓位对齐到他的仓位，比例 = 跟单资金上限 ÷ 他的当前权益；他开仓后上游约 2–3 分钟才检出，再加每分钟一轮的对账，入场天然比他慢几分钟、有滑点，跟模拟的口径一致但更慢。风险：他是超高杠杆打法（历史最大回撤约 49%），跟单可能爆仓；先用演练模式看几天日志，再用小额实盘。密钥安全：执行器在云端运行、出口 IP 不固定，密钥无法设 IP 白名单，所以创建密钥时只开交易权限、绝不要开提现；建议专门用一个子账户跟单，执行器只动它持有或跟过的品种，你自己手动开的其他品种不会被碰，但同一品种的手动仓会和跟单仓合并计算。用欧易跟单时，他在币安交易的品种按欧易对应的 USDT 永续镜像（SPCX、NVDA、SKHYNIX 等欧易都有），两家价格和资金费略有差异，跟单结果不会和币安分毫不差。</p>';
   if (!liveStatus.bound) {
     panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行 <span class="right">未绑定</span></h2>' +
-      '<p style="font-size:14px;line-height:1.8">币安官方跟单名额已满（1000/1000），这里走 API 自动跟单：把你币安的 API 密钥绑定到本站，后端执行器按你设定的金额自动镜像他的仓位，资金一直在你自己的币安账户里。</p>' +
-      '<p style="font-size:14px;line-height:1.8;color:var(--muted)">创建密钥：币安 App 或网页 → 头像 → API 管理 → 创建 API → 权限只勾选<b style="color:var(--text)">「启用合约」</b>，<b style="color:var(--text)">不要勾提现</b>；如遇 IP 限制选项选不限制。创建后把 API Key 和 Secret 填到下面（只传给本站后端保存，页面不留存）。</p>' +
+      '<p style="font-size:14px;line-height:1.8">币安官方跟单名额已满（1000/1000），这里走 API 自动跟单：把你交易所的 API 密钥绑定到本站，后端执行器按你设定的金额自动镜像他的仓位，资金一直在你自己的账户里。</p>' +
       '<div style="display:flex;flex-direction:column;gap:10px;max-width:520px">' +
+      '<label style="font-size:13px;color:var(--muted)">交易所<br><select id="cpExch" onchange="bindExchChanged()" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px"><option value="binance"' + (bindExchSel === 'binance' ? ' selected' : '') + '>币安 Binance</option><option value="okx"' + (bindExchSel === 'okx' ? ' selected' : '') + '>欧易 OKX</option></select></label>' +
+      '<p id="cpGuideBn" style="font-size:14px;line-height:1.8;color:var(--muted);margin:0;display:' + (bindExchSel === 'binance' ? 'block' : 'none') + '">创建密钥：币安 App 或网页 → 头像 → API 管理 → 创建 API → 权限只勾选<b style="color:var(--text)">「启用合约」</b>，<b style="color:var(--text)">不要勾提现</b>；如遇 IP 限制选项选不限制。创建后把 API Key 和 Secret 填到下面（只传给本站后端保存，页面不留存）。</p>' +
+      '<p id="cpGuideOkx" style="font-size:14px;line-height:1.8;color:var(--muted);margin:0;display:' + (bindExchSel === 'okx' ? 'block' : 'none') + '">创建密钥：欧易 App → 我的 → API → 创建 API Key → 权限只勾<b style="color:var(--text)">「交易」</b>，<b style="color:var(--text)">不要开提现</b>；「IP 地址」一栏<b style="color:var(--text)">留空（不限制）</b>；还要设一个 <b style="color:var(--text)">Passphrase（密码短语）</b>，自己记好，绑定时 Key、Secret、Passphrase 三个都要填。</p>' +
       '<input id="cpKey" type="text" autocomplete="off" placeholder="API Key" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px">' +
       '<input id="cpSecret" type="password" autocomplete="off" placeholder="API Secret（只传后端保存，不会回显）" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px">' +
+      '<input id="cpPass" type="password" autocomplete="off" placeholder="Passphrase（欧易创建密钥时你自己设的密码短语）" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;display:' + (bindExchSel === 'okx' ? 'block' : 'none') + '">' +
       '<div><button class="btn btn-yellow" onclick="bindCopy()">绑定并检测</button> <span id="cpBindMsg" style="font-size:13px;color:var(--muted)"></span></div>' +
       '</div>' + riskNote + '</div>';
     return;
@@ -999,6 +1009,7 @@ function renderLivePanel() {
     log.slice(0, 15).map(l => '<tr><td>' + fmtDT(l.at) + '</td><td>' + escHtml(l.action) + '</td><td>' + (l.symbol ? sideText(l.symbol, l.side || 'LONG') : '—') + '</td><td>' + (l.qty !== undefined && l.qty !== null ? fmt(l.qty, l.qty < 10 ? 3 : 2) : '—') + '</td><td>' + (l.price ? fmtPrice(l.price) + ' U' : '—') + '</td><td style="font-size:12px;color:var(--muted)">' + escHtml(l.note || '') + '</td></tr>').join('') + '</tbody></table>';
   panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行 <span class="right">' + liveBadge() + '</span></h2>' +
     '<div class="simstats">' +
+    '<span>交易所 <b>' + (liveStatus.exchange === 'okx' ? '欧易 OKX' : '币安') + '</b></span>' +
     '<span>密钥 <b>····' + escHtml(liveStatus.keyLast4 || '') + '</b></span>' +
     '<span>合约可用 <b>' + (st.account ? fmt(st.account.usdtAvailable) + ' U' : '—') + '</b></span>' +
     '<span>上次执行 <b>' + (st.lastRun ? fmtDT(st.lastRun) : '还没跑过') + '</b></span>' +
@@ -1013,7 +1024,7 @@ function renderLivePanel() {
     (s.enabled ? '<button class="btn btn-ghost" onclick="setCopyEnabled(false)">停止跟单</button>' : '<button class="btn btn-yellow" onclick="setCopyEnabled(true)">启用跟单</button>') +
     '<button class="btn btn-ghost" onclick="runCopyNow()">立即同步一轮</button>' +
     '</div>' +
-    '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位（币安实时）</h3>' + posHtml +
+    '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位（实时）</h3>' + posHtml +
     '<h3 style="margin:16px 0 8px;font-size:15px">执行日志</h3>' + logHtml +
     '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">' +
     '<button class="btn btn-ghost" style="border-color:var(--red);color:var(--red)" onclick="closeAllCopy()">一键平仓跟单仓位并停止</button>' +
@@ -1025,12 +1036,20 @@ async function bindCopy() {
   const secret = document.getElementById('cpSecret').value.trim();
   const msg = document.getElementById('cpBindMsg');
   if (!key || !secret) { msg.textContent = '先把 Key 和 Secret 都填上。'; return; }
+  const body = { exchange: bindExchSel, apiKey: key, apiSecret: secret };
+  if (bindExchSel === 'okx') {
+    const pass = document.getElementById('cpPass').value.trim();
+    if (!pass) { msg.textContent = '欧易还要填 Passphrase（创建密钥时你自己设的密码短语）。'; return; }
+    body.passphrase = pass;
+  }
   msg.textContent = '正在检测密钥…';
   try {
-    const res = await copyApi('/api/copy/bind', 'POST', { apiKey: key, apiSecret: secret });
+    const res = await copyApi('/api/copy/bind', 'POST', body);
     if (!res.ok) { msg.textContent = res.error || '绑定失败。'; return; }
     msg.textContent = res.note || '绑定成功。';
     document.getElementById('cpSecret').value = '';
+    const passEl = document.getElementById('cpPass');
+    if (passEl) passEl.value = '';
     refreshLiveStatus();
   } catch (e) { msg.textContent = '请求失败，请稍后再试。'; }
 }
@@ -1038,7 +1057,7 @@ async function saveCopySettings() {
   const dryVal = document.getElementById('cpDry').value === '1';
   const wasLive = liveStatus && liveStatus.settings && !liveStatus.settings.dryRun;
   if (!dryVal && !wasLive && liveStatus.settings && liveStatus.settings.dryRun) {
-    if (!confirm('切换到实盘模式后，执行器会用你币安账户里的真实资金下单。确定要切到实盘吗？')) return;
+    if (!confirm('切换到实盘模式后，执行器会用你绑定的交易所账户里的真实资金下单。确定要切到实盘吗？')) return;
   }
   const body = {
     capitalCap: parseFloat(document.getElementById('cpCap').value),

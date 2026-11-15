@@ -237,6 +237,7 @@ async function handleRadar(req) {
 //   名单（务必只开合约交易权限、关闭提现）。
 // ============================================================
 const COPY_HOSTS = ['https://fapi.binance.com', 'https://www.binance.com/fapi'];
+const OKX_HOSTS = ['https://www.okx.com', 'https://aws.okx.com'];
 const COPY_MAX_ORDERS_PER_RUN = 10;
 const COPY_MIN_ADJUST_NOTIONAL = 15; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外
 
@@ -283,6 +284,58 @@ async function bnTryHosts(keys, method, path, params, signed) {
     }
   }
   throw lastErr || new Error('币安接口不可达');
+}
+
+function hexToB64(hexStr) {
+  const bytes = new Uint8Array(hexStr.match(/.{2}/g).map(b => parseInt(b, 16)));
+  let bin = '';
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+// 欧易 API v5 签名请求：签名 = Base64(HMAC-SHA256(secret, 时间戳+方法+路径+请求体))
+async function okxFetch(keys, host, method, path, bodyObj) {
+  const ts = new Date().toISOString();
+  const body = bodyObj ? JSON.stringify(bodyObj) : '';
+  const sign = hexToB64(await hmacHex(keys.secret, ts + method.toUpperCase() + path + body));
+  const r = await fetch(host + path, {
+    method,
+    headers: {
+      'OK-ACCESS-KEY': keys.key,
+      'OK-ACCESS-SIGN': sign,
+      'OK-ACCESS-TIMESTAMP': ts,
+      'OK-ACCESS-PASSPHRASE': keys.passphrase || '',
+      'Content-Type': 'application/json',
+      'User-Agent': 'kerong-radar-copy/1.0',
+    },
+    body: body || undefined,
+    signal: AbortSignal.timeout(12000),
+  });
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); } catch (e) { data = { code: String(r.status), msg: text }; }
+  if (!r.ok || (data.code !== undefined && data.code !== '0')) {
+    const err = new Error((data && data.msg) || ('欧易接口 HTTP ' + r.status));
+    err.code = data && data.code;
+    err.status = r.status;
+    throw err;
+  }
+  return data;
+}
+async function okxTryHosts(keys, method, path, bodyObj) {
+  // 先用存下来的可用 host；失败自动换另一个并回写。密钥类错误换 host 没用，直接抛
+  const order = keys.host ? [keys.host, ...OKX_HOSTS.filter(h => h !== keys.host)] : OKX_HOSTS;
+  let lastErr = null;
+  for (const host of order) {
+    try {
+      const data = await okxFetch(keys, host, method, path, bodyObj);
+      keys.host = host;
+      return data;
+    } catch (e) {
+      lastErr = e;
+      if (['50113', '50105', '50104', '50101', '50111'].includes(String(e.code))) throw e;
+    }
+  }
+  throw lastErr || new Error('欧易接口不可达');
 }
 
 /* COPYPURE:START —— 纯计算部分（无 IO，本地可单测） */
@@ -360,6 +413,27 @@ function copyComputeOrders(desired, actual, marks, filters) {
   }
   return intents;
 }
+/* —— 欧易换算（纯函数） ——
+   引擎内部统一用「币安数量单位」（如 BTC 个数、1000PEPE 的千枚单位）；
+   欧易下单按张数：张数 = 数量 × scale ÷ ctVal，再按 lotSz 向下取整。
+   scale 只用于币安 1000 前缀品种（1000PEPEUSDT ↔ 欧易 PEPE-USDT-SWAP），其余为 1。 */
+function okxToContracts(qtyBase, meta) {
+  if (!meta || !meta.ctVal || !meta.lotSz) return 0;
+  const raw = qtyBase / meta.ctVal;
+  return parseFloat((Math.floor(raw / meta.lotSz) * meta.lotSz).toFixed(8));
+}
+function okxPosSideFor(posMode, orderSide, reduceOnly) {
+  // 单向持仓（net）模式不需要 posSide；双向模式必须带：开仓看方向，平仓看被平的那条腿
+  if (posMode !== 'long_short_mode') return null;
+  if (reduceOnly) return orderSide === 'SELL' ? 'long' : 'short';
+  return orderSide === 'BUY' ? 'long' : 'short';
+}
+function okxSignedContracts(p, posMode) {
+  const pos = parseFloat(p.pos);
+  if (!pos) return 0;
+  if (posMode === 'long_short_mode') return p.posSide === 'short' ? -Math.abs(pos) : Math.abs(pos);
+  return pos; // net 模式 pos 本身带符号
+}
 /* COPYPURE:END */
 
 async function copyGetJson(env, key, fallback) {
@@ -404,6 +478,159 @@ async function copyFetchFilters(env, keys) {
   await env.AUTH_KV.put('copy:exchangeinfo', JSON.stringify({ at: Date.now(), filters }));
   return filters;
 }
+
+/* ===== 交易所适配层：引擎只认统一形状，币安/欧易各自翻译 =====
+   统一形状：
+   - 账户 { avail, balance, positions: [{symbol(币安式，如 BTCUSDT), qtySigned(币安数量单位，带符号), entryPrice, markPrice, uPnl}] }
+   - 过滤器 { SYMBOL: { stepSize, minQty, minNotional, okx?: {instId, ctVal, lotSz, scale} } }（stepSize 等均为币安数量单位） */
+function copyExch(keys) { return keys && keys.exchange === 'okx' ? 'okx' : 'binance'; }
+async function copyFetchFiltersX(env, keys) {
+  if (copyExch(keys) === 'okx') return okxFetchFilters(env, keys);
+  return copyFetchFilters(env, keys);
+}
+async function okxFetchInstruments(env, keys) {
+  const cached = await copyGetJson(env, 'copy:okx-instruments', null);
+  if (cached && cached.at && Date.now() - cached.at < 24 * 3600 * 1000) return cached.map;
+  const host = (keys && keys.host) || OKX_HOSTS[0];
+  const r = await fetch(host + '/api/v5/public/instruments?instType=SWAP', { headers: { 'User-Agent': 'kerong-radar-copy/1.0' }, signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error('欧易合约列表 HTTP ' + r.status);
+  const d = await r.json();
+  if (d.code !== '0') throw new Error('欧易合约列表异常：' + (d.msg || d.code));
+  const map = {};
+  for (const it of d.data || []) {
+    if (it.state !== 'live' || it.settleCcy !== 'USDT') continue;
+    map[it.instId] = { ctVal: parseFloat(it.ctVal), lotSz: parseFloat(it.lotSz), minSz: parseFloat(it.minSz) };
+  }
+  await env.AUTH_KV.put('copy:okx-instruments', JSON.stringify({ at: Date.now(), map }));
+  return map;
+}
+async function okxFetchFilters(env, keys) {
+  const inst = await okxFetchInstruments(env, keys);
+  const filters = {};
+  for (const instId in inst) {
+    const m = inst[instId];
+    const symbol = instId.replace(/-USDT-SWAP$/, '') + 'USDT';
+    filters[symbol] = { stepSize: m.lotSz * m.ctVal, minQty: m.minSz * m.ctVal, minNotional: 5, okx: { instId, ctVal: m.ctVal, lotSz: m.lotSz, scale: 1 } };
+    // 币安 1000 前缀品种（1000PEPEUSDT）：欧易是 PEPE-USDT-SWAP，数量单位差 1000 倍，登记别名
+    const alias = '1000' + symbol;
+    if (!filters[alias]) {
+      filters[alias] = { stepSize: (m.lotSz * m.ctVal) / 1000, minQty: (m.minSz * m.ctVal) / 1000, minNotional: 5, okx: { instId, ctVal: m.ctVal, lotSz: m.lotSz, scale: 1000 } };
+    }
+  }
+  return filters;
+}
+async function copyFetchAccountX(env, keys) {
+  if (copyExch(keys) === 'okx') return okxFetchAccount(env, keys);
+  const balances = await bnTryHosts(keys, 'GET', '/fapi/v2/balance', {}, true);
+  const usdt = (balances || []).find(b => b.asset === 'USDT');
+  if (!usdt) throw new Error('账户里没有 USDT 合约余额（或密钥没有合约读取权限）');
+  const posRisk = await bnTryHosts(keys, 'GET', '/fapi/v2/positionRisk', {}, true);
+  const positions = [];
+  for (const pr of posRisk || []) {
+    const amt = parseFloat(pr.positionAmt);
+    if (!amt) continue;
+    positions.push({ symbol: pr.symbol, qtySigned: amt, entryPrice: parseFloat(pr.entryPrice), markPrice: parseFloat(pr.markPrice) || 0, uPnl: parseFloat(pr.unRealizedProfit) || 0 });
+  }
+  return { avail: parseFloat(usdt.availableBalance), balance: parseFloat(usdt.balance), positions };
+}
+async function okxFetchAccount(env, keys) {
+  const bal = await okxTryHosts(keys, 'GET', '/api/v5/account/balance', null);
+  const details = (bal.data && bal.data[0] && bal.data[0].details) || [];
+  const usdt = details.find(x => x.ccy === 'USDT');
+  if (!usdt) throw new Error('欧易账户里没有 USDT（或密钥没有读取权限）');
+  const inst = await okxFetchInstruments(env, keys);
+  const posRes = await okxTryHosts(keys, 'GET', '/api/v5/account/positions?instType=SWAP', null);
+  const byInst = {};
+  for (const p of posRes.data || []) {
+    const m = inst[p.instId];
+    if (!m) continue;
+    const contracts = okxSignedContracts(p, keys.posMode);
+    if (!contracts) continue;
+    const cur = byInst[p.instId] || { contracts: 0, entryNotional: 0, markPrice: 0, uPnl: 0 };
+    cur.entryNotional += Math.abs(contracts) * m.ctVal * (parseFloat(p.avgPx) || 0);
+    cur.contracts += contracts;
+    cur.markPrice = parseFloat(p.markPx) || cur.markPrice;
+    cur.uPnl += parseFloat(p.upl) || 0;
+    byInst[p.instId] = cur;
+  }
+  const positions = [];
+  for (const instId in byInst) {
+    const m = inst[instId];
+    const agg = byInst[instId];
+    const absContracts = Math.abs(agg.contracts);
+    positions.push({
+      symbol: instId.replace(/-USDT-SWAP$/, '') + 'USDT',
+      qtySigned: agg.contracts * m.ctVal,
+      entryPrice: absContracts > 0 ? agg.entryNotional / (absContracts * m.ctVal) : 0,
+      markPrice: agg.markPrice,
+      uPnl: agg.uPnl,
+    });
+  }
+  return { avail: parseFloat(usdt.availBal || usdt.availEq || 0), balance: parseFloat(usdt.eq || 0), positions };
+}
+// 欧易别名对齐：带单员的 1000 前缀品种在欧易账户里是无前缀品种，数量差 1000 倍、价格差 1000 倍
+function okxAliasAdjust(positions, wantedSyms) {
+  for (const pr of positions) {
+    const alias = '1000' + pr.symbol;
+    if (wantedSyms.has(alias) && !wantedSyms.has(pr.symbol)) {
+      pr.symbol = alias;
+      pr.qtySigned = pr.qtySigned / 1000;
+      pr.entryPrice = pr.entryPrice * 1000;
+      pr.markPrice = pr.markPrice * 1000;
+    }
+  }
+}
+async function copyEnsureLevX(env, keys, symbol, lev, filter) {
+  if (copyExch(keys) === 'okx') {
+    const meta = filter && filter.okx;
+    if (!meta) return;
+    try {
+      await okxTryHosts(keys, 'POST', '/api/v5/account/set-leverage', { instId: meta.instId, lever: String(lev), mgnMode: 'cross' });
+    } catch (e) {
+      if (keys.posMode === 'long_short_mode') {
+        try { await okxTryHosts(keys, 'POST', '/api/v5/account/set-leverage', { instId: meta.instId, lever: String(lev), mgnMode: 'cross', posSide: 'long' }); } catch (e2) { /* 忽略 */ }
+        try { await okxTryHosts(keys, 'POST', '/api/v5/account/set-leverage', { instId: meta.instId, lever: String(lev), mgnMode: 'cross', posSide: 'short' }); } catch (e2) { /* 忽略 */ }
+      }
+      // 设杠杆失败不挡下单：账户现有杠杆可能已够用，订单本身会再校验
+    }
+    return;
+  }
+  try { await bnTryHosts(keys, 'POST', '/fapi/v1/marginType', { symbol, marginType: 'CROSSED' }, true); } catch (e) { if (e.code !== -4046) throw e; }
+  try { await bnTryHosts(keys, 'POST', '/fapi/v1/leverage', { symbol, leverage: lev }, true); } catch (e) { if (e.code !== -4059) throw e; }
+}
+async function copyPlaceOrderX(env, keys, intent, filter, mark) {
+  if (copyExch(keys) === 'okx') {
+    const meta = filter && filter.okx;
+    if (!meta) throw new Error('欧易没有这个品种的 USDT 永续，跳过');
+    const contracts = okxToContracts(intent.qty * meta.scale, meta);
+    if (!contracts || contracts <= 0) throw new Error('换算成欧易张数后太小，跳过');
+    const body = { instId: meta.instId, tdMode: 'cross', side: intent.orderSide.toLowerCase(), ordType: 'market', sz: String(contracts) };
+    const posSide = okxPosSideFor(keys.posMode, intent.orderSide, intent.reduceOnly);
+    if (posSide) body.posSide = posSide;
+    else if (intent.reduceOnly) body.reduceOnly = true;
+    const res = await okxTryHosts(keys, 'POST', '/api/v5/trade/order', body);
+    const o = (res.data || [])[0] || {};
+    if (o.sCode && o.sCode !== '0') { const err = new Error(o.sMsg || '欧易下单被拒'); err.code = o.sCode; throw err; }
+    let execQty = intent.qty;
+    let avgPrice = mark || 0;
+    try {
+      const det = await okxTryHosts(keys, 'GET', '/api/v5/trade/order?instId=' + encodeURIComponent(meta.instId) + '&ordId=' + encodeURIComponent(o.ordId), null);
+      const d0 = (det.data || [])[0];
+      if (d0) {
+        const filled = Math.abs(parseFloat(d0.accFillSz) || 0);
+        if (filled > 0) execQty = filled * meta.ctVal / meta.scale;
+        if (parseFloat(d0.avgPx) > 0) avgPrice = parseFloat(d0.avgPx) * meta.scale;
+      }
+    } catch (e) { /* 成交明细拉不到不影响下单结果，日志用请求量和标记价 */ }
+    return { orderId: o.ordId, execQty, avgPrice };
+  }
+  const params = { symbol: intent.symbol, side: intent.orderSide, type: 'MARKET', quantity: String(intent.qty), newClientOrderId: 'radar' + Date.now() + Math.floor(Math.random() * 1000) };
+  if (intent.reduceOnly) params.reduceOnly = 'true';
+  const res = await bnTryHosts(keys, 'POST', '/fapi/v1/order', params, true);
+  const execQty = parseFloat(res.executedQty || intent.qty);
+  const avg = parseFloat(res.avgPrice || 0) || (parseFloat(res.cumQuote || 0) > 0 && execQty > 0 ? parseFloat(res.cumQuote) / execQty : (mark || 0));
+  return { orderId: res.orderId, execQty, avgPrice: avg };
+}
 async function runCopyExecutor(env, username, opts) {
   opts = opts || {};
   const keys = await copyGetJson(env, `copy:${username}:keys`, null);
@@ -417,12 +644,10 @@ async function runCopyExecutor(env, username, opts) {
   let changed = !!opts.manual; // 手动触发的一轮必落盘，状态页立刻能看到最新持仓
   try {
     const leader = await copyFetchLeader();
-    const balances = await bnTryHosts(keys, 'GET', '/fapi/v2/balance', {}, true);
-    const usdt = (balances || []).find(b => b.asset === 'USDT');
-    if (!usdt) throw new Error('账户里没有 USDT 合约余额（或密钥没有合约读取权限）');
-    const avail = parseFloat(usdt.availableBalance);
-    const posRisk = await bnTryHosts(keys, 'GET', '/fapi/v2/positionRisk', {}, true);
-    const filters = await copyFetchFilters(env, keys);
+    const acct = await copyFetchAccountX(env, keys);
+    if (copyExch(keys) === 'okx') okxAliasAdjust(acct.positions, new Set((leader.positions || []).map(p => p.symbol)));
+    const avail = acct.avail;
+    const filters = await copyFetchFiltersX(env, keys);
     const marks = {};
     (leader.positions || []).forEach(p => { marks[p.symbol] = p.markPrice; });
     // 账户实际仓位（带符号），只管理「带单员当前持有 ∪ 历史跟过的」品种，避免碰用户自己手动开的其他仓
@@ -430,18 +655,18 @@ async function runCopyExecutor(env, username, opts) {
     (leader.positions || []).forEach(p => tracked.add(p.symbol + '_' + p.side));
     const actual = {};
     const posSnapshot = [];
-    for (const pr of posRisk || []) {
-      const amt = parseFloat(pr.positionAmt);
+    for (const pr of acct.positions) {
+      const amt = pr.qtySigned;
       if (!amt) continue;
       const side = amt > 0 ? 'LONG' : 'SHORT';
       const key = pr.symbol + '_' + side;
-      const mark = parseFloat(pr.markPrice) || marks[pr.symbol] || 0;
+      const mark = pr.markPrice || marks[pr.symbol] || 0;
       if (mark) marks[pr.symbol] = mark;
-      posSnapshot.push({ symbol: pr.symbol, side, qty: Math.abs(amt), entryPrice: parseFloat(pr.entryPrice), markPrice: mark, unrealizedPnl: parseFloat(pr.unRealizedProfit), managed: tracked.has(key) });
+      posSnapshot.push({ symbol: pr.symbol, side, qty: Math.abs(amt), entryPrice: pr.entryPrice, markPrice: mark, unrealizedPnl: pr.uPnl, managed: tracked.has(key) });
       if (tracked.has(key)) actual[key] = { symbol: pr.symbol, side, qty: amt, markPrice: mark };
     }
     state.positions = posSnapshot;
-    state.account = { usdtAvailable: avail, usdtBalance: parseFloat(usdt.balance) };
+    state.account = { usdtAvailable: avail, usdtBalance: acct.balance };
     // 目标仓位 + 保证金护栏：预计占用超过可用余额 95% 就等比缩小
     let desired = copyDesiredPositions(leader.positions, leader.equity, settings.capitalCap);
     const lev = copyLeverageFor(settings, leader.effectiveLeverage);
@@ -464,15 +689,10 @@ async function runCopyExecutor(env, username, opts) {
       try {
         if (!levSetDone[it.symbol]) {
           levSetDone[it.symbol] = true;
-          try { await bnTryHosts(keys, 'POST', '/fapi/v1/marginType', { symbol: it.symbol, marginType: 'CROSSED' }, true); } catch (e) { if (e.code !== -4046) throw e; }
-          try { await bnTryHosts(keys, 'POST', '/fapi/v1/leverage', { symbol: it.symbol, leverage: lev }, true); } catch (e) { if (e.code !== -4059) throw e; }
+          await copyEnsureLevX(env, keys, it.symbol, lev, filters[it.symbol]);
         }
-        const params = { symbol: it.symbol, side: it.orderSide, type: 'MARKET', quantity: String(it.qty), newClientOrderId: 'radar' + Date.now() + Math.floor(Math.random() * 1000) };
-        if (it.reduceOnly) params.reduceOnly = 'true';
-        const res = await bnTryHosts(keys, 'POST', '/fapi/v1/order', params, true);
-        const execQty = parseFloat(res.executedQty || it.qty);
-        const avg = parseFloat(res.avgPrice || 0) || (parseFloat(res.cumQuote || 0) > 0 && execQty > 0 ? parseFloat(res.cumQuote) / execQty : (marks[it.symbol] || 0));
-        copyLog(state, { action: '下单', symbol: it.symbol, side: it.side, kind: it.kind, qty: execQty, price: avg, note: it.note, orderId: res.orderId });
+        const res = await copyPlaceOrderX(env, keys, it, filters[it.symbol], marks[it.symbol] || 0);
+        copyLog(state, { action: '下单', symbol: it.symbol, side: it.side, kind: it.kind, qty: res.execQty, price: res.avgPrice, note: it.note, orderId: res.orderId });
         ordersPlaced++;
       } catch (e) {
         copyLog(state, { action: '下单失败', symbol: it.symbol, side: it.side, kind: it.kind, qty: it.qty, note: (e.code ? '[' + e.code + '] ' : '') + e.message });
@@ -518,13 +738,17 @@ async function handleCopyBind(req, env) {
   if (!body) return json(req, { ok: false, error: '请求格式不对。' });
   const key = String(body.apiKey || '').trim();
   const secret = String(body.apiSecret || '').trim();
-  if (!/^[A-Za-z0-9]{32,128}$/.test(key) || !/^[A-Za-z0-9]{32,128}$/.test(secret)) {
-    return json(req, { ok: false, error: 'API Key / Secret 格式不对（应为 32 位以上字母数字）。' });
-  }
   if (!(await rateLimit(env, clientIp(req), 'copybind', 10))) {
     return json(req, { ok: false, error: '绑定尝试太频繁，请 1 小时后再试。' }, 429);
   }
-  const keys = { key, secret, host: null, boundAt: new Date().toISOString() };
+  if (body.exchange === 'okx') return bindOkx(req, env, username, key, secret, String(body.passphrase || ''));
+  return bindBinance(req, env, username, key, secret);
+}
+async function bindBinance(req, env, username, key, secret) {
+  if (!/^[A-Za-z0-9]{32,128}$/.test(key) || !/^[A-Za-z0-9]{32,128}$/.test(secret)) {
+    return json(req, { ok: false, error: 'API Key / Secret 格式不对（应为 32 位以上字母数字）。' });
+  }
+  const keys = { exchange: 'binance', key, secret, host: null, boundAt: new Date().toISOString() };
   // 探活：逐个 host 试签名读取合约余额，哪个通存哪个
   let usdt = null;
   let lastErr = null;
@@ -551,10 +775,68 @@ async function handleCopyBind(req, env) {
     await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify({ capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true }));
   }
   return json(req, {
-    ok: true, host: keys.host,
+    ok: true, exchange: 'binance', host: keys.host,
     usdtBalance: usdt ? parseFloat(usdt.balance) : null,
     usdtAvailable: usdt ? parseFloat(usdt.availableBalance) : null,
     note: usdt ? '密钥可用，已读取到合约 USDT 余额。' : '密钥签名通过，但账户里没读到 USDT 合约余额（可能还没划转资金到合约账户）。',
+  });
+}
+async function bindOkx(req, env, username, key, secret, passphrase) {
+  if (!/^[A-Za-z0-9-]{16,64}$/.test(key) || !/^[A-Za-z0-9]{16,64}$/.test(secret)) {
+    return json(req, { ok: false, error: 'API Key / Secret 格式不对（欧易 Key 是带横杠的一串字符，Secret 是 32 位字符）。' });
+  }
+  if (passphrase.length < 6 || passphrase.length > 64) {
+    return json(req, { ok: false, error: '还差 Passphrase：就是你在欧易创建 API 密钥时自己设的那个密码短语；没设过的话，这把密钥不是在欧易建的。' });
+  }
+  const keys = { exchange: 'okx', key, secret, passphrase, host: null, posMode: null, boundAt: new Date().toISOString() };
+  // 探活：逐个 host 试签名读取账户余额，哪个通存哪个
+  let usdt = null;
+  let lastErr = null;
+  for (const host of OKX_HOSTS) {
+    try {
+      const bal = await okxFetch(keys, host, 'GET', '/api/v5/account/balance', null);
+      const details = (bal.data && bal.data[0] && bal.data[0].details) || [];
+      usdt = details.find(x => x.ccy === 'USDT') || null;
+      keys.host = host;
+      lastErr = null;
+      break;
+    } catch (e) { lastErr = e; }
+  }
+  if (!keys.host) {
+    const c = lastErr && String(lastErr.code);
+    const msg = c === '50113' ? '欧易拒绝了这把密钥（Invalid API Key）：检查 Key 是否复制完整；如果是在模拟盘（Demo）里建的密钥，不能绑实盘。'
+      : c === '50105' || c === '50104' ? 'Passphrase 不对：填你创建这把密钥时自己设的密码短语；忘了只能删掉这把密钥重新创建。'
+      : c === '50111' ? '欧易说这把密钥的 IP 不在白名单里：创建密钥时「IP 地址」一栏要留空（不限制），或删掉重建一把不限制 IP 的。'
+      : c === '50101' ? '这把是模拟盘（Demo trading）的密钥，环境对不上，不能用于实盘绑定，请用实盘账户创建的密钥。'
+      : c === '50102' ? '时间戳校验没过（服务器时间差），请稍等一分钟再试。'
+      : '连不上欧易接口（' + (lastErr ? lastErr.message : '未知错误') + '），请稍后再试；若反复失败，把这句原样发我。';
+    return json(req, { ok: false, error: msg });
+  }
+  // 读账户配置：持仓模式（单向/双向）与账户等级（1=现货模式，交易不了合约）
+  let cfg0 = null;
+  try {
+    const cfg = await okxFetch(keys, keys.host, 'GET', '/api/v5/account/config', null);
+    cfg0 = (cfg.data || [])[0] || null;
+  } catch (e) { cfg0 = null; }
+  if (cfg0) {
+    keys.posMode = cfg0.posMode || null;
+    if (cfg0.acctLv === '1') {
+      return json(req, { ok: false, error: '密钥能用，但你的欧易账户还是「现货账户」模式，交易不了合约。先去欧易 App：资产 → 设置 → 账户模式，升级为「单币种保证金」或更高，再回来绑定。' });
+    }
+  }
+  await env.AUTH_KV.put(`copy:${username}:keys`, JSON.stringify(keys));
+  const users = await copyGetJson(env, 'copy:users', []);
+  if (!users.includes(username)) { users.push(username); await env.AUTH_KV.put('copy:users', JSON.stringify(users)); }
+  const existing = await copyGetJson(env, `copy:${username}:settings`, null);
+  if (!existing) {
+    await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify({ capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true }));
+  }
+  return json(req, {
+    ok: true, exchange: 'okx', host: keys.host,
+    usdtBalance: usdt ? parseFloat(usdt.eq) : null,
+    usdtAvailable: usdt ? parseFloat(usdt.availBal || usdt.availEq || 0) : null,
+    note: (usdt ? '欧易密钥可用，已读取到 USDT 余额。' : '欧易密钥签名通过，但账户里没读到 USDT（资金可能还没划到交易账户）。') +
+      (keys.posMode === 'long_short_mode' ? ' 检测到你的账户是双向持仓模式，执行器会按净持仓镜像。' : ''),
   });
 }
 async function handleCopyStatus(req, env) {
@@ -565,7 +847,7 @@ async function handleCopyStatus(req, env) {
   const settings = await copyGetJson(env, `copy:${username}:settings`, null);
   const state = await copyGetJson(env, `copy:${username}:state`, null);
   return json(req, {
-    ok: true, bound: true, keyLast4: keys.key.slice(-4), host: keys.host, boundAt: keys.boundAt,
+    ok: true, bound: true, exchange: keys.exchange || 'binance', posMode: keys.posMode || null, keyLast4: keys.key.slice(-4), host: keys.host, boundAt: keys.boundAt,
     settings, state: state ? { lastRun: state.lastRun, lastError: state.lastError, account: state.account, positions: state.positions, log: state.log, lastLev: state.lastLev } : null,
   });
 }
@@ -614,18 +896,21 @@ async function handleCopyCloseAll(req, env) {
   const state = await copyGetJson(env, `copy:${username}:state`, { log: [] });
   const results = [];
   try {
-    const posRisk = await bnTryHosts(keys, 'GET', '/fapi/v2/positionRisk', {}, true);
+    const acct = await copyFetchAccountX(env, keys);
+    if (copyExch(keys) === 'okx') {
+      okxAliasAdjust(acct.positions, new Set(Object.keys(state.mirrored || {}).map(k => k.replace(/_(LONG|SHORT)$/, ''))));
+    }
+    const filters = await copyFetchFiltersX(env, keys);
     const tracked = new Set(Object.keys(state.mirrored || {}));
-    for (const pr of posRisk || []) {
-      const amt = parseFloat(pr.positionAmt);
+    for (const pr of acct.positions) {
+      const amt = pr.qtySigned;
       if (!amt) continue;
       const side = amt > 0 ? 'LONG' : 'SHORT';
       if (!tracked.has(pr.symbol + '_' + side)) continue; // 只平跟单管的仓，不动用户手动仓
-      const filters = await copyFetchFilters(env, keys);
       const f = filters[pr.symbol] || {};
       const q = copyRoundStep(Math.abs(amt), f.stepSize) || Math.abs(amt);
       try {
-        const res = await bnTryHosts(keys, 'POST', '/fapi/v1/order', { symbol: pr.symbol, side: amt > 0 ? 'SELL' : 'BUY', type: 'MARKET', quantity: String(q), reduceOnly: 'true', newClientOrderId: 'radarclose' + Date.now() }, true);
+        const res = await copyPlaceOrderX(env, keys, { symbol: pr.symbol, side, orderSide: amt > 0 ? 'SELL' : 'BUY', qty: q, reduceOnly: true }, f, pr.markPrice);
         results.push({ symbol: pr.symbol, side, qty: q, ok: true, orderId: res.orderId });
         copyLog(state, { action: '一键平仓', symbol: pr.symbol, side, qty: q, note: '用户手动触发一键平仓并停止跟单' });
       } catch (e) {
