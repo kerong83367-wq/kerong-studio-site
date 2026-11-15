@@ -1116,6 +1116,15 @@ export default {
         const users = await env.AUTH_KV.get('copy:cron-users');
         return json(req, { ok: true, cronHb: hb, cronUsers: users });
       }
+      if (req.method === 'POST' && url.pathname === '/api/copy/tick') {
+        const tickToken = req.headers.get('x-tick-token') || '';
+        if (!env.TICK_TOKEN || tickToken !== env.TICK_TOKEN) {
+          return json(req, { ok: false, error: 'tick token 不对。' }, 403);
+        }
+        try { await env.AUTH_KV.put('copy:cron-hb', new Date().toISOString()); } catch (e) {}
+        await runAllCopyExecutors(env);
+        return json(req, { ok: true });
+      }
       if (req.method === 'POST' && url.pathname === '/api/copy/bind') return handleCopyBind(req, env);
       if (req.method === 'GET' && url.pathname === '/api/copy/status') return handleCopyStatus(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/settings') return handleCopySettings(req, env);
