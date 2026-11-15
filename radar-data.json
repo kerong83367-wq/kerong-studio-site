@@ -6,16 +6,16 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-15T18:52:00.925604+08:00",
-  "equity": 375325.56979225,
-  "equityUpdatedAt": "2026-11-15T18:52:00.925602+08:00",
-  "marginBalance": 375325.56979225,
-  "marginBalanceUpdatedAt": "2026-11-15T18:52:00.925602+08:00",
+  "lastUpdatedAt": "2026-11-16T01:27:44.028955+08:00",
+  "equity": 362871.4017543,
+  "equityUpdatedAt": "2026-11-16T01:27:44.028954+08:00",
+  "marginBalance": 362871.4017543,
+  "marginBalanceUpdatedAt": "2026-11-16T01:27:44.028954+08:00",
   "equityStale": false,
-  "effectiveLeverage": 4.574058694463998,
+  "effectiveLeverage": 4.702035060403767,
   "valuationComplete": true,
-  "notional": 1716761.1857628953,
-  "unrealizedPnl": 24203.85179001296,
+  "notional": 1706234.0534665794,
+  "unrealizedPnl": 13676.719493696975,
   "positionCount": 2,
   "positions": [
     {
@@ -24,14 +24,14 @@
       "quantity": 18.325000000000003,
       "quantityUnit": "币",
       "entryPrice": 63881.19699135717,
-      "markPrice": 65489.2,
+      "markPrice": 64879.49115217,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 1200089.59,
-      "unrealizedPnl": 29466.655133379874,
+      "notional": 1188916.6753635155,
+      "unrealizedPnl": 18293.740496895134,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-15T10:52:17.544265831Z",
-      "updatedAt": "2026-11-15T18:52:00.924744+08:00"
+      "priceUpdatedAt": "2026-11-15T17:27:53.670151981Z",
+      "updatedAt": "2026-11-16T01:27:44.02835+08:00"
     },
     {
       "symbol": "NVDAUSDT",
@@ -39,14 +39,14 @@
       "quantity": 3206.99,
       "quantityUnit": "币",
       "entryPrice": 162.74899488500495,
-      "markPrice": 161.10795349,
+      "markPrice": 161.30932061,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 516671.5957628951,
-      "unrealizedPnl": -5262.803343366916,
+      "notional": 517317.37810306385,
+      "unrealizedPnl": -4617.02100319816,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-15T10:52:17.544265831Z",
-      "updatedAt": "2026-11-15T18:52:00.925053+08:00"
+      "priceUpdatedAt": "2026-11-15T17:27:53.670151981Z",
+      "updatedAt": "2026-11-16T01:27:44.028521+08:00"
     }
   ],
   "events": [
@@ -3557,9 +3557,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-15T10:50:16.393Z",
+    "updatedAt": "2026-11-15T17:23:36.930Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-15T18:52:21.635144+08:00",
+  "fetchedAt": "2026-11-16T01:27:58.370554+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
