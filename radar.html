@@ -1011,8 +1011,19 @@ function renderLivePanel() {
   const s = liveStatus.settings || { capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
   const st = liveStatus.state || {};
   const pos = st.positions || [];
+  // 浮动盈亏合计与持仓市值：优先用页面直连的实时价现算（约 5 秒一轮），快照只作兜底
+  let floatSum = 0, notionalSum = 0;
+  for (const p of pos) {
+    const lm0 = liveMarks[p.symbol];
+    const mk0 = lm0 || p.markPrice;
+    const pnl0 = (lm0 && isFinite(p.entryPrice)) ? (lm0 - p.entryPrice) * p.qty * (p.side === 'LONG' ? 1 : -1) : p.unrealizedPnl;
+    if (isFinite(pnl0)) floatSum += pnl0;
+    if (isFinite(mk0) && isFinite(p.qty)) notionalSum += Math.abs(p.qty) * mk0;
+  }
+  const acctBal = st.account && isFinite(st.account.usdtBalance) ? st.account.usdtBalance : null;
+  const equity = acctBal === null ? null : (liveStatus.exchange === 'okx' ? acctBal : acctBal + floatSum);
   const posHtml = pos.length === 0 ? '<div class="empty-box">合约账户当前无仓位（或执行器还没跑过第一轮，点「立即同步一轮」）。</div>' :
-    '<table><thead><tr><th>币种 / 方向</th><th>数量</th><th>开仓均价</th><th>标记价</th><th>浮动盈亏</th><th>归属</th><th>止盈价</th><th>止损价</th><th>操作</th></tr></thead><tbody>' +
+    '<table><thead><tr><th>币种 / 方向</th><th>数量</th><th>开仓均价</th><th>标记价</th><th>强平参考价</th><th>浮动盈亏</th><th>止盈价</th><th>止损价</th><th>操作</th></tr></thead><tbody>' +
     pos.map(p => {
       const key = p.symbol + '_' + p.side;
       const g = (liveStatus.guards && liveStatus.guards.tpsl && liveStatus.guards.tpsl[key]) || {};
@@ -1025,7 +1036,7 @@ function renderLivePanel() {
         '<td><input type="number" step="any" min="0" id="cpsl_' + key + '" value="' + (g.sl || '') + '" placeholder="不设" onchange="saveCopyTpSl(\'' + p.symbol + '\',\'' + p.side + '\')" style="width:96px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:13px"></td>' +
         '<td><button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="closeCopyPos(\'' + p.symbol + '\',\'' + p.side + '\')">平仓</button></td>'
         : '<td>—</td><td>—</td><td>—</td>';
-      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.qty, p.qty < 0.01 ? 6 : p.qty < 10 ? 3 : 2) + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(dispMark) + ' U</td><td class="' + (dispPnl > 0 ? 'green' : dispPnl < 0 ? 'red' : '') + '">' + fmtSigned(dispPnl) + ' U</td><td>' + (p.managed ? '跟单' : '手动') + '</td>' + ctl + '</tr>';
+      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + ' <span style="color:var(--muted);font-size:12px">' + (p.managed ? '跟单' : '手动') + '</span></td><td>' + fmt(p.qty, p.qty < 0.01 ? 6 : p.qty < 10 ? 3 : 2) + ' ' + p.symbol.replace(/USDT$/, '') + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(dispMark) + ' U</td><td class="red">' + (p.liqPrice ? fmtPrice(p.liqPrice) + ' U' : '—') + '</td><td class="' + (dispPnl > 0 ? 'green' : dispPnl < 0 ? 'red' : '') + '">' + fmtSigned(dispPnl) + ' U</td>' + ctl + '</tr>';
     }).join('') + '</tbody></table>';
   const lockedKeys = Object.keys((liveStatus.guards && liveStatus.guards.locked) || {});
   const lockedHtml = lockedKeys.length === 0 ? '' :
@@ -1037,13 +1048,17 @@ function renderLivePanel() {
     log.slice(0, 15).map(l => '<tr><td>' + fmtDT(l.at) + '</td><td>' + escHtml(l.action) + '</td><td>' + (l.symbol ? sideText(l.symbol, l.side || 'LONG') : '—') + '</td><td>' + (l.qty !== undefined && l.qty !== null ? fmt(l.qty, l.qty < 10 ? 3 : 2) : '—') + '</td><td>' + (l.price ? fmtPrice(l.price) + ' U' : '—') + '</td><td style="font-size:12px;color:var(--muted)">' + escHtml(l.note || '') + '</td></tr>').join('') + '</tbody></table>';
   panel.innerHTML = '<div class="card" style="margin-top:16px"><h2>实盘跟单 · API 自动执行 <span class="right">' + liveBadge() + '</span></h2>' +
     '<div class="simstats">' +
+    '<span>账户权益 <b>' + (equity !== null ? fmt(equity) + ' U' : '—') + '</b></span>' +
+    '<span>可用资金 <b>' + (st.account ? fmt(st.account.usdtAvailable) + ' U' : '—') + '</b></span>' +
+    '<span>持仓市值 <b>' + fmt(notionalSum) + ' U</b></span>' +
+    '<span>浮动盈亏 <b class="' + (floatSum > 0 ? 'green' : floatSum < 0 ? 'red' : '') + '">' + fmtSigned(floatSum) + ' U</b></span>' +
     '<span>交易所 <b>' + (liveStatus.exchange === 'okx' ? '欧易 OKX' : '币安') + '</b></span>' +
     '<span>密钥 <b>····' + escHtml(liveStatus.keyLast4 || '') + '</b></span>' +
-    '<span>合约可用 <b>' + (st.account ? fmt(st.account.usdtAvailable) + ' U' : '—') + '</b></span>' +
     '<span>上次执行 <b>' + (st.lastRun ? fmtDT(st.lastRun) : '还没跑过') + '</b></span>' +
     (st.lastError ? '<span>最近异常 <b class="red">' + escHtml(st.lastError) + '</b></span>' : '<span>最近异常 <b>无</b></span>') +
     '</div>' +
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:6px">' +
+    '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位</h3>' + posHtml + lockedHtml +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">' +
     '<label style="font-size:13px;color:var(--muted)">跟单资金上限 (USDT)<br><input id="cpCap" type="number" min="50" max="100000" step="10" value="' + s.capitalCap + '" style="width:130px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
     '<label style="font-size:13px;color:var(--muted)">杠杆模式<br><select id="cpLevMode" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"><option value="fixed"' + (s.leverageMode === 'fixed' ? ' selected' : '') + '>固定杠杆</option><option value="follow"' + (s.leverageMode === 'follow' ? ' selected' : '') + '>跟随他的实际杠杆（封顶 20）</option></select></label>' +
     '<label style="font-size:13px;color:var(--muted)">固定杠杆 (1–10)<br><input id="cpLev" type="number" min="1" max="10" step="1" value="' + s.fixedLeverage + '" style="width:90px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
@@ -1052,7 +1067,6 @@ function renderLivePanel() {
     (s.enabled ? '<button class="btn btn-ghost" onclick="setCopyEnabled(false)">停止跟单</button>' : '<button class="btn btn-yellow" onclick="setCopyEnabled(true)">启用跟单</button>') +
     '<button class="btn btn-ghost" onclick="runCopyNow()">立即同步一轮</button>' +
     '</div>' +
-    '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位（实时）</h3>' + posHtml + lockedHtml +
     '<h3 style="margin:16px 0 8px;font-size:15px">执行日志 <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px;margin-left:8px" onclick="toggleCopyLog()">' + (copyLogOpen ? '收起 ▴' : '展开 ▾') + '</button></h3>' + (copyLogOpen ? logHtml : '') +
     '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">' +
     '<button class="btn btn-ghost" style="border-color:var(--red);color:var(--red)" onclick="closeAllCopy()">一键平仓跟单仓位并停止</button>' +

@@ -544,7 +544,7 @@ async function copyFetchAccountX(env, keys) {
   for (const pr of posRisk || []) {
     const amt = parseFloat(pr.positionAmt);
     if (!amt) continue;
-    positions.push({ symbol: pr.symbol, qtySigned: amt, entryPrice: parseFloat(pr.entryPrice), markPrice: parseFloat(pr.markPrice) || 0, uPnl: parseFloat(pr.unRealizedProfit) || 0 });
+    positions.push({ symbol: pr.symbol, qtySigned: amt, entryPrice: parseFloat(pr.entryPrice), markPrice: parseFloat(pr.markPrice) || 0, uPnl: parseFloat(pr.unRealizedProfit) || 0, liqPrice: parseFloat(pr.liquidationPrice) || 0 });
   }
   return { avail: parseFloat(usdt.availableBalance), balance: parseFloat(usdt.balance), positions };
 }
@@ -561,11 +561,12 @@ async function okxFetchAccount(env, keys) {
     if (!m) continue;
     const contracts = okxSignedContracts(p, keys.posMode);
     if (!contracts) continue;
-    const cur = byInst[p.instId] || { contracts: 0, entryNotional: 0, markPrice: 0, uPnl: 0 };
+    const cur = byInst[p.instId] || { contracts: 0, entryNotional: 0, markPrice: 0, uPnl: 0, liqPx: 0, liqContracts: 0 };
     cur.entryNotional += Math.abs(contracts) * m.ctVal * (parseFloat(p.avgPx) || 0);
     cur.contracts += contracts;
     cur.markPrice = parseFloat(p.markPx) || cur.markPrice;
     cur.uPnl += parseFloat(p.upl) || 0;
+    if (Math.abs(contracts) >= Math.abs(cur.liqContracts)) { cur.liqPx = parseFloat(p.liqPx) || 0; cur.liqContracts = contracts; }
     byInst[p.instId] = cur;
   }
   const positions = [];
@@ -579,6 +580,7 @@ async function okxFetchAccount(env, keys) {
       entryPrice: absContracts > 0 ? agg.entryNotional / (absContracts * m.ctVal) : 0,
       markPrice: agg.markPrice,
       uPnl: agg.uPnl,
+      liqPrice: agg.liqPx || 0,
     });
   }
   return { avail: parseFloat(usdt.availBal || usdt.availEq || 0), balance: parseFloat(usdt.eq || 0), positions };
@@ -592,6 +594,7 @@ function okxAliasAdjust(positions, wantedSyms) {
       pr.qtySigned = pr.qtySigned / 1000;
       pr.entryPrice = pr.entryPrice * 1000;
       pr.markPrice = pr.markPrice * 1000;
+      if (pr.liqPrice) pr.liqPrice = pr.liqPrice * 1000;
     }
   }
 }
@@ -682,7 +685,7 @@ async function runCopyExecutor(env, username, opts) {
       const key = pr.symbol + '_' + side;
       const mark = pr.markPrice || marks[pr.symbol] || 0;
       if (mark) marks[pr.symbol] = mark;
-      posSnapshot.push({ symbol: pr.symbol, side, qty: Math.abs(amt), entryPrice: pr.entryPrice, markPrice: mark, unrealizedPnl: pr.uPnl, managed: tracked.has(key) });
+      posSnapshot.push({ symbol: pr.symbol, side, qty: Math.abs(amt), entryPrice: pr.entryPrice, markPrice: mark, unrealizedPnl: pr.uPnl, liqPrice: pr.liqPrice || 0, managed: tracked.has(key) });
       if (tracked.has(key)) actual[key] = { symbol: pr.symbol, side, qty: amt, markPrice: mark };
     }
     if (JSON.stringify(state.positions || null) !== JSON.stringify(posSnapshot)) changed = true; // 仓位快照变了就落盘，免得面板一直显示旧数量
