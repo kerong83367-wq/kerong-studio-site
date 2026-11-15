@@ -237,7 +237,7 @@ async function handleRadar(req) {
 //   名单（务必只开合约交易权限、关闭提现）。
 // ============================================================
 const COPY_HOSTS = ['https://fapi.binance.com', 'https://www.binance.com/fapi'];
-const OKX_HOSTS = ['https://www.okx.com', 'https://aws.okx.com'];
+const OKX_HOSTS = ['https://www.okx.com']; // aws.okx.com 实测从云端和本地出口都连不通（断连/1016），不用
 const COPY_MAX_ORDERS_PER_RUN = 10;
 const COPY_MIN_ADJUST_NOTIONAL = 15; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外
 
@@ -332,7 +332,8 @@ async function okxTryHosts(keys, method, path, bodyObj) {
       return data;
     } catch (e) {
       lastErr = e;
-      if (['50113', '50105', '50104', '50101', '50111'].includes(String(e.code))) throw e;
+      // 欧易返回了 5 位数业务错误码 = 请求已到达欧易 API、答复是权威的，换 host 只会把真错误盖掉
+      if (/^5\d{4}$/.test(String(e.code))) throw e;
     }
   }
   throw lastErr || new Error('欧易接口不可达');
@@ -804,7 +805,8 @@ async function bindOkx(req, env, username, key, secret, passphrase) {
   }
   if (!keys.host) {
     const c = lastErr && String(lastErr.code);
-    const msg = c === '50113' ? '欧易拒绝了这把密钥（Invalid API Key）：检查 Key 是否复制完整；如果是在模拟盘（Demo）里建的密钥，不能绑实盘。'
+    const msg = c === '50119' ? '欧易说这把 API Key 不存在：检查 Key 是否复制完整、是不是在欧易实盘账户里创建的（模拟盘的 Key 在这里查不到）。'
+      : c === '50113' ? '欧易拒绝了这把密钥（Invalid API Key）：检查 Key 是否复制完整；如果是在模拟盘（Demo）里建的密钥，不能绑实盘。'
       : c === '50105' || c === '50104' ? 'Passphrase 不对：填你创建这把密钥时自己设的密码短语；忘了只能删掉这把密钥重新创建。'
       : c === '50111' ? '欧易说这把密钥的 IP 不在白名单里：创建密钥时「IP 地址」一栏要留空（不限制），或删掉重建一把不限制 IP 的。'
       : c === '50101' ? '这把是模拟盘（Demo trading）的密钥，环境对不上，不能用于实盘绑定，请用实盘账户创建的密钥。'
