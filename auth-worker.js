@@ -237,7 +237,7 @@ async function handleRadar(req) {
 //   名单（务必只开合约交易权限、关闭提现）。
 // ============================================================
 const COPY_HOSTS = ['https://fapi.binance.com', 'https://www.binance.com/fapi'];
-const OKX_HOSTS = ['https://www.okx.com']; // aws.okx.com 实测从云端和本地出口都连不通（断连/1016），不用
+const OKX_HOSTS = ['https://app.okx.com', 'https://www.okx.com']; // www 从 Worker 出口被 CF 拦 1016（橙到橙），app 域名同为欧易官方 API 入口放第一；aws.okx.com 实测连不通
 const COPY_MAX_ORDERS_PER_RUN = 10;
 const COPY_MIN_ADJUST_NOTIONAL = 15; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外
 
@@ -801,7 +801,7 @@ async function bindOkx(req, env, username, key, secret, passphrase) {
       keys.host = host;
       lastErr = null;
       break;
-    } catch (e) { lastErr = e; }
+    } catch (e) { if (/^5\d{4}$/.test(String(e.code))) { lastErr = e; break; } if (!lastErr) lastErr = e; }
   }
   if (!keys.host) {
     const c = lastErr && String(lastErr.code);
