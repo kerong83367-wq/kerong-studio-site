@@ -1025,7 +1025,7 @@ function renderLivePanel() {
         '<td><input type="number" step="any" min="0" id="cpsl_' + key + '" value="' + (g.sl || '') + '" placeholder="不设" onchange="saveCopyTpSl(\'' + p.symbol + '\',\'' + p.side + '\')" style="width:96px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:13px"></td>' +
         '<td><button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="closeCopyPos(\'' + p.symbol + '\',\'' + p.side + '\')">平仓</button></td>'
         : '<td>—</td><td>—</td><td>—</td>';
-      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.qty, p.qty < 10 ? 3 : 2) + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(dispMark) + ' U</td><td class="' + (dispPnl > 0 ? 'green' : dispPnl < 0 ? 'red' : '') + '">' + fmtSigned(dispPnl) + ' U</td><td>' + (p.managed ? '跟单' : '手动') + '</td>' + ctl + '</tr>';
+      return '<tr><td class="' + (p.side === 'LONG' ? 'long' : 'short') + '">' + sideText(p.symbol, p.side) + '</td><td>' + fmt(p.qty, p.qty < 0.01 ? 6 : p.qty < 10 ? 3 : 2) + '</td><td>' + fmtPrice(p.entryPrice) + ' U</td><td>' + fmtPrice(dispMark) + ' U</td><td class="' + (dispPnl > 0 ? 'green' : dispPnl < 0 ? 'red' : '') + '">' + fmtSigned(dispPnl) + ' U</td><td>' + (p.managed ? '跟单' : '手动') + '</td>' + ctl + '</tr>';
     }).join('') + '</tbody></table>';
   const lockedKeys = Object.keys((liveStatus.guards && liveStatus.guards.locked) || {});
   const lockedHtml = lockedKeys.length === 0 ? '' :

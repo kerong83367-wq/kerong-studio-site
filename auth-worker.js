@@ -308,7 +308,7 @@ async function okxFetch(keys, host, method, path, bodyObj) {
       'User-Agent': 'kerong-radar-copy/1.0',
     },
     body: body || undefined,
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(8000),
   });
   const text = await r.text();
   let data;
@@ -322,8 +322,10 @@ async function okxFetch(keys, host, method, path, bodyObj) {
   return data;
 }
 async function okxTryHosts(keys, method, path, bodyObj) {
-  // 先用存下来的可用 host；失败自动换另一个并回写。密钥类错误换 host 没用，直接抛
-  const order = keys.host ? [keys.host, ...OKX_HOSTS.filter(h => h !== keys.host)] : OKX_HOSTS;
+  // 尾点域名与 www 同一密钥库、且从 Worker 出口可达，固定排第一；存档 host 可能已被写成慢/坏域名，别让它拖死整轮（cron 轮次超时会被静默杀掉）
+  const order = ['https://www.okx.com.'];
+  if (keys.host && !order.includes(keys.host)) order.push(keys.host);
+  for (const h of OKX_HOSTS) if (!order.includes(h)) order.push(h);
   let lastErr = null;
   for (const host of order) {
     try {
@@ -683,6 +685,7 @@ async function runCopyExecutor(env, username, opts) {
       posSnapshot.push({ symbol: pr.symbol, side, qty: Math.abs(amt), entryPrice: pr.entryPrice, markPrice: mark, unrealizedPnl: pr.uPnl, managed: tracked.has(key) });
       if (tracked.has(key)) actual[key] = { symbol: pr.symbol, side, qty: amt, markPrice: mark };
     }
+    if (JSON.stringify(state.positions || null) !== JSON.stringify(posSnapshot)) changed = true; // 仓位快照变了就落盘，免得面板一直显示旧数量
     state.positions = posSnapshot;
     state.account = { usdtAvailable: avail, usdtBalance: acct.balance };
     // 解锁：带单员已经完全平掉的锁定仓，解除锁定并清掉它的止盈止损（他下次重开会正常跟）
@@ -738,8 +741,13 @@ async function runCopyExecutor(env, username, opts) {
     const lev = copyLeverageFor(settings, leader.effectiveLeverage);
     let marginNeed = 0;
     for (const k in desired) marginNeed += Math.abs(desired[k].qty) * (marks[desired[k].symbol] || desired[k].markPrice || 0) / lev;
-    if (marginNeed > avail * 0.95 && marginNeed > 0) {
-      const scale = (avail * 0.95) / marginNeed;
+    // 预算 = 可用余额 + 已跟仓位正占用的保证金：availBal 本来就不含已占用部分，
+    // 直接拿它跟全额目标比，会误判“钱不够”把已经开好的仓卖掉（2026-11-15 实盘实测：开仓后 avail 只剩 5.59，护栏按 12% 把仓砍了）
+    let committed = 0;
+    for (const k in desired) { const a = actual[k]; if (a) committed += Math.abs(a.qty) * (marks[a.symbol] || a.markPrice || 0) / lev; }
+    const budget = avail + committed;
+    if (marginNeed > budget * 0.95 && marginNeed > 0) {
+      const scale = (budget * 0.95) / marginNeed;
       for (const k in desired) desired[k].qty *= scale;
       copyLog(state, { action: '护栏', note: '可用保证金不足以全额镜像，已按 ' + Math.round(scale * 100) + '% 比例缩小目标仓位' });
       changed = true;
@@ -761,7 +769,7 @@ async function runCopyExecutor(env, username, opts) {
         copyLog(state, { action: '下单', symbol: it.symbol, side: it.side, kind: it.kind, qty: res.execQty, price: res.avgPrice, note: it.note, orderId: res.orderId });
         ordersPlaced++;
       } catch (e) {
-        copyLog(state, { action: '下单失败', symbol: it.symbol, side: it.side, kind: it.kind, qty: it.qty, note: (e.code ? '[' + e.code + '] ' : '') + e.message });
+        copyLog(state, { action: '下单失败', symbol: it.symbol, side: it.side, kind: it.kind, qty: it.qty, note: (e.code ? '[' + e.code + '] ' : '') + e.message + (String(e.code) === '50119' ? '（注：多集群不一致时订单可能其实已成交，下一轮对账会核对真实持仓）' : '') });
       }
       changed = true;
     }
