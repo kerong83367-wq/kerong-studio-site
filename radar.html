@@ -269,15 +269,16 @@ const sideText = (sym, side) => sym.replace(/USDT$/, '') + (side === 'LONG' ? '�
 let lastData = null, chartMode = 'roi';
 
 /* ---- 开平仓声音提醒 + 语音播报（WebAudio + speechSynthesis，无需音频文件） ----
-   浏览器规定：声音只能在用户点过页面之后才能响。所以要先点一下
-   “开平仓提醒”按钮开启（点开时会响一声并说一句“开平仓提醒已开启”，确认
-   能听见），之后每 10 秒刷新时，一旦发现新的开仓/加仓事件就响开仓提示音
+   提醒默认开启（只有手动关过才记住关）。浏览器规定：声音一般只能在
+   用户点过页面之后才能响；刷新后页面先自动试着恢复出声，被拦时按钮
+   显示“点一下页面解锁声音”，在页面任意处点一下（或按一下键盘）即可。
+   之后每 10 秒刷新时，一旦发现新的开仓/加仓事件就响开仓提示音
    （升调）并语音播报开单内容，发现新的减仓/平仓事件就响平仓提示音
    （降调）并语音播报平仓内容。页面关了就没法响。
    响度：改用方波（听感比正弦波响得多）+ 三轮双音 + 更长音长，默认
    音量“大”；下拉可调大/中/小。但最终仍受 Mac 系统音量限制，系统
    音量本身小的话，页面再响也有限。 */
-let soundOn = localStorage.getItem('radar_sound') === '1';
+let soundOn = localStorage.getItem('radar_sound') !== '0'; // 默认开启；只有手动关过（存了 '0'）才关
 let volLevel = localStorage.getItem('radar_vol') || '大';
 const VOL_GAIN = { '大': 1.0, '中': 0.6, '小': 0.35 };
 let audioCtx = null, lastSeenEventId = null;
@@ -343,7 +344,7 @@ function updateSoundBtn() {
   const b = document.getElementById('soundBtn');
   if (!b) return;
   if (!soundOn) b.textContent = '🔔 开平仓提醒：关';
-  else if (audioCtx && audioCtx.state !== 'running') b.textContent = '🔔 点一下页面解锁声音';
+  else if (!audioCtx || audioCtx.state !== 'running') b.textContent = '🔔 点一下页面解锁声音';
   else b.textContent = '🔔 开平仓提醒：开';
 }
 function setVol(v) {
@@ -358,8 +359,11 @@ function toggleSound() {
   updateSoundBtn();
   if (soundOn) { playOpenAlert(); speak('开平仓提醒已开启'); } // 开启时响一声并说一句，确认能听见
 }
-/* 之前开着提醒、刷新后重进页面：任意点一下页面就恢复出声能力 */
+/* 提醒默认开启：刷新后先试着直接恢复声音（常访问的站点浏览器可能放行）；
+   被浏览器拦住时，任意点一下页面或按一下键盘就恢复出声能力 */
+if (soundOn) ensureAudio();
 document.addEventListener('pointerdown', () => { if (soundOn) { ensureAudio(); updateSoundBtn(); } });
+document.addEventListener('keydown', () => { if (soundOn) { ensureAudio(); updateSoundBtn(); } });
 /* 每 10 秒刷新时比对操作记录：出现新的开仓/加仓事件就响开仓提示音（升调）
    并语音播报，出现新的减仓/平仓事件就响平仓提示音（降调）并语音播报。
    只认直连上游的实时数据，快照不触发；首次加载只记基线，不响。 */
