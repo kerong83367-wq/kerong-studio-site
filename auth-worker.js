@@ -435,6 +435,18 @@ function okxSignedContracts(p, posMode) {
   if (posMode === 'long_short_mode') return p.posSide === 'short' ? -Math.abs(pos) : Math.abs(pos);
   return pos; // net 模式 pos 本身带符号
 }
+/* 止盈止损触发判断：多头标记价涨到止盈/跌到止损触发，空头反过来。g = {tp, sl}（可为 null） */
+function copyTpSlHit(side, mark, g) {
+  if (!g || !mark || mark <= 0) return null;
+  if (side === 'LONG') {
+    if (g.tp && mark >= g.tp) return 'tp';
+    if (g.sl && mark <= g.sl) return 'sl';
+  } else {
+    if (g.tp && mark <= g.tp) return 'tp';
+    if (g.sl && mark >= g.sl) return 'sl';
+  }
+  return null;
+}
 /* COPYPURE:END */
 
 async function copyGetJson(env, key, fallback) {
@@ -640,6 +652,11 @@ async function runCopyExecutor(env, username, opts) {
     { capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
   if (!settings.enabled && !opts.manual) return { ran: false, reason: '未启用' };
   const state = await copyGetJson(env, `copy:${username}:state`, { log: [] });
+  // 止盈止损与锁定（手动平仓/止盈/止损后锁定该仓，带单员完全平掉才解锁）：单独存 guards，面板接口也会读写
+  const guards = await copyGetJson(env, `copy:${username}:guards`, { tpsl: {}, locked: {} });
+  if (!guards.tpsl) guards.tpsl = {};
+  if (!guards.locked) guards.locked = {};
+  let guardsChanged = false;
   const runAt = new Date().toISOString();
   let ordersPlaced = 0;
   let changed = !!opts.manual; // 手动触发的一轮必落盘，状态页立刻能看到最新持仓
@@ -668,8 +685,56 @@ async function runCopyExecutor(env, username, opts) {
     }
     state.positions = posSnapshot;
     state.account = { usdtAvailable: avail, usdtBalance: acct.balance };
+    // 解锁：带单员已经完全平掉的锁定仓，解除锁定并清掉它的止盈止损（他下次重开会正常跟）
+    const leaderKeys = new Set((leader.positions || []).map(p => p.symbol + '_' + p.side));
+    for (const k in guards.locked) {
+      if (!leaderKeys.has(k)) {
+        delete guards.locked[k];
+        delete guards.tpsl[k];
+        guardsChanged = true;
+        copyLog(state, { action: '解锁', note: k.replace('_', ' ') + '：带单员已平仓，解除锁定' });
+        changed = true;
+      }
+    }
+    // 止盈止损检查（每分钟一轮按标记价判断）+ 已锁定仓位还开着时重试平仓
+    for (const k in actual) {
+      const a = actual[k];
+      let reason = null;
+      if (guards.locked[k]) reason = 'lock';
+      else {
+        const hit = copyTpSlHit(a.side, a.markPrice, guards.tpsl[k]);
+        if (hit) reason = hit; // 'tp' | 'sl'
+      }
+      if (!reason) continue;
+      const g = guards.tpsl[k] || {};
+      const note = reason === 'tp' ? '止盈触发（设 ' + g.tp + '，标记价 ' + a.markPrice + '）'
+        : reason === 'sl' ? '止损触发（设 ' + g.sl + '，标记价 ' + a.markPrice + '）'
+        : '已锁定仓位仍未平掉，再次尝试平仓';
+      const f = filters[a.symbol] || {};
+      const q = copyRoundStep(Math.abs(a.qty), f.stepSize) || Math.abs(a.qty);
+      if (settings.dryRun) {
+        copyLog(state, { action: '演练', symbol: a.symbol, side: a.side, kind: 'CLOSE', qty: q, price: a.markPrice, note: note + '（演练模式，未真实下单）' });
+        changed = true;
+        continue;
+      }
+      try {
+        const res = await copyPlaceOrderX(env, keys, { symbol: a.symbol, side: a.side, orderSide: a.qty > 0 ? 'SELL' : 'BUY', qty: q, reduceOnly: true }, f, a.markPrice);
+        copyLog(state, { action: reason === 'tp' ? '止盈平仓' : reason === 'sl' ? '止损平仓' : '平仓', symbol: a.symbol, side: a.side, kind: 'CLOSE', qty: res.execQty, price: res.avgPrice, note, orderId: res.orderId });
+        ordersPlaced++;
+        delete actual[k]; // 已平掉，别让下面的对账又对它下单
+        if (reason === 'tp' || reason === 'sl') {
+          guards.locked[k] = { at: runAt, reason };
+          delete guards.tpsl[k];
+          guardsChanged = true;
+        }
+      } catch (e) {
+        copyLog(state, { action: '平仓失败', symbol: a.symbol, side: a.side, kind: 'CLOSE', qty: q, note: note + '：' + (e.code ? '[' + e.code + '] ' : '') + e.message });
+      }
+      changed = true;
+    }
     // 目标仓位 + 保证金护栏：预计占用超过可用余额 95% 就等比缩小
     let desired = copyDesiredPositions(leader.positions, leader.equity, settings.capitalCap);
+    for (const k in guards.locked) delete desired[k]; // 锁定的仓不再跟回
     const lev = copyLeverageFor(settings, leader.effectiveLeverage);
     let marginNeed = 0;
     for (const k in desired) marginNeed += Math.abs(desired[k].qty) * (marks[desired[k].symbol] || desired[k].markPrice || 0) / lev;
@@ -716,6 +781,7 @@ async function runCopyExecutor(env, username, opts) {
     copyLog(state, { action: '异常', note: state.lastError });
     changed = true;
   }
+  if (guardsChanged) await env.AUTH_KV.put(`copy:${username}:guards`, JSON.stringify(guards));
   // KV 写节流：有动作/异常必写；否则最多 10 分钟写一次心跳
   const lastWrite = state._lastWrite || 0;
   if (changed || Date.now() - lastWrite > 10 * 60 * 1000) {
@@ -848,9 +914,10 @@ async function handleCopyStatus(req, env) {
   if (!keys) return json(req, { ok: true, bound: false });
   const settings = await copyGetJson(env, `copy:${username}:settings`, null);
   const state = await copyGetJson(env, `copy:${username}:state`, null);
+  const guards = await copyGetJson(env, `copy:${username}:guards`, { tpsl: {}, locked: {} });
   return json(req, {
     ok: true, bound: true, exchange: keys.exchange || 'binance', posMode: keys.posMode || null, keyLast4: keys.key.slice(-4), host: keys.host, boundAt: keys.boundAt,
-    settings, state: state ? { lastRun: state.lastRun, lastError: state.lastError, account: state.account, positions: state.positions, log: state.log, lastLev: state.lastLev } : null,
+    settings, guards, state: state ? { lastRun: state.lastRun, lastError: state.lastError, account: state.account, positions: state.positions, log: state.log, lastLev: state.lastLev } : null,
   });
 }
 async function handleCopySettings(req, env) {
@@ -930,6 +997,78 @@ async function handleCopyCloseAll(req, env) {
   }
   return json(req, { ok: true, results, note: '跟单已停止；上面是跟单仓位的平仓结果。' });
 }
+async function handleCopyTpSl(req, env) {
+  const username = await requireCopyUser(req, env);
+  if (!username) return json(req, { ok: false, error: '请先登录本站账号。' }, 401);
+  const keys = await copyGetJson(env, `copy:${username}:keys`, null);
+  if (!keys) return json(req, { ok: false, error: '请先绑定 API 密钥。' });
+  const body = await req.json().catch(() => null);
+  if (!body || !body.symbol || !['LONG', 'SHORT'].includes(body.side)) return json(req, { ok: false, error: '请求格式不对。' });
+  const key = body.symbol + '_' + body.side;
+  const tp = body.tp === null || body.tp === undefined || body.tp === '' ? null : parseFloat(body.tp);
+  const sl = body.sl === null || body.sl === undefined || body.sl === '' ? null : parseFloat(body.sl);
+  if (tp !== null && (!isFinite(tp) || tp <= 0)) return json(req, { ok: false, error: '止盈价不对。' });
+  if (sl !== null && (!isFinite(sl) || sl <= 0)) return json(req, { ok: false, error: '止损价不对。' });
+  // 方向校验：按最近一轮快照的标记价，多头止盈要在现价上方、止损在下方，空头反过来
+  const state = await copyGetJson(env, `copy:${username}:state`, null);
+  const pos = ((state && state.positions) || []).find(p => p.symbol === body.symbol && p.side === body.side);
+  if (!pos) return json(req, { ok: false, error: '没找到这个仓位（可能刚平掉，刷新页面看看）。' });
+  const mark = pos.markPrice || pos.entryPrice || 0;
+  if (mark > 0) {
+    if (body.side === 'LONG') {
+      if (tp !== null && tp <= mark) return json(req, { ok: false, error: '多头止盈价要高于现价（现价约 ' + mark + '）。' });
+      if (sl !== null && sl >= mark) return json(req, { ok: false, error: '多头止损价要低于现价（现价约 ' + mark + '）。' });
+    } else {
+      if (tp !== null && tp >= mark) return json(req, { ok: false, error: '空头止盈价要低于现价（现价约 ' + mark + '）。' });
+      if (sl !== null && sl <= mark) return json(req, { ok: false, error: '空头止损价要高于现价（现价约 ' + mark + '）。' });
+    }
+  }
+  const guards = await copyGetJson(env, `copy:${username}:guards`, { tpsl: {}, locked: {} });
+  if (!guards.tpsl) guards.tpsl = {};
+  if (!guards.locked) guards.locked = {};
+  if (tp === null && sl === null) delete guards.tpsl[key];
+  else guards.tpsl[key] = { tp, sl };
+  await env.AUTH_KV.put(`copy:${username}:guards`, JSON.stringify(guards));
+  return json(req, { ok: true, guards });
+}
+async function handleCopyClosePos(req, env) {
+  const username = await requireCopyUser(req, env);
+  if (!username) return json(req, { ok: false, error: '请先登录本站账号。' }, 401);
+  const keys = await copyGetJson(env, `copy:${username}:keys`, null);
+  if (!keys) return json(req, { ok: false, error: '请先绑定 API 密钥。' });
+  const body = await req.json().catch(() => null);
+  if (!body || !body.symbol || !['LONG', 'SHORT'].includes(body.side)) return json(req, { ok: false, error: '请求格式不对。' });
+  const key = body.symbol + '_' + body.side;
+  const state = await copyGetJson(env, `copy:${username}:state`, { log: [] });
+  try {
+    const acct = await copyFetchAccountX(env, keys);
+    if (copyExch(keys) === 'okx') {
+      okxAliasAdjust(acct.positions, new Set(Object.keys(state.mirrored || {}).map(k => k.replace(/_(LONG|SHORT)$/, ''))));
+    }
+    const filters = await copyFetchFiltersX(env, keys);
+    const pr = (acct.positions || []).find(p => p.symbol === body.symbol && p.qtySigned !== 0 && (p.qtySigned > 0 ? 'LONG' : 'SHORT') === body.side);
+    if (!pr) return json(req, { ok: false, error: '账户里没找到这个仓位（可能已经平掉了）。' });
+    const amt = pr.qtySigned;
+    const f = filters[pr.symbol] || {};
+    const q = copyRoundStep(Math.abs(amt), f.stepSize) || Math.abs(amt);
+    const res = await copyPlaceOrderX(env, keys, { symbol: pr.symbol, side: body.side, orderSide: amt > 0 ? 'SELL' : 'BUY', qty: q, reduceOnly: true }, f, pr.markPrice);
+    // 锁定：带单员这笔仓没平完之前，执行器不会再把这个仓跟回来
+    const guards = await copyGetJson(env, `copy:${username}:guards`, { tpsl: {}, locked: {} });
+    if (!guards.tpsl) guards.tpsl = {};
+    if (!guards.locked) guards.locked = {};
+    guards.locked[key] = { at: new Date().toISOString(), reason: 'manual' };
+    delete guards.tpsl[key];
+    await env.AUTH_KV.put(`copy:${username}:guards`, JSON.stringify(guards));
+    copyLog(state, { action: '手动平仓', symbol: pr.symbol, side: body.side, qty: res.execQty, price: res.avgPrice, note: '用户在面板手动平仓，已锁定：带单员平掉这笔之前不再跟回', orderId: res.orderId });
+    state.lastRun = new Date().toISOString();
+    state._lastWrite = Date.now();
+    await env.AUTH_KV.put(`copy:${username}:state`, JSON.stringify(state));
+    if (keys.host) await env.AUTH_KV.put(`copy:${username}:keys`, JSON.stringify(keys));
+    return json(req, { ok: true, qty: res.execQty, price: res.avgPrice });
+  } catch (e) {
+    return json(req, { ok: false, error: '平仓失败：' + (e.code ? '[' + e.code + '] ' : '') + e.message });
+  }
+}
 async function handleCopyUnbind(req, env) {
   const username = await requireCopyUser(req, env);
   if (!username) return json(req, { ok: false, error: '请先登录本站账号。' }, 401);
@@ -965,6 +1104,8 @@ export default {
       if (req.method === 'POST' && url.pathname === '/api/copy/settings') return handleCopySettings(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/run') return handleCopyRun(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/closeall') return handleCopyCloseAll(req, env);
+      if (req.method === 'POST' && url.pathname === '/api/copy/tpsl') return handleCopyTpSl(req, env);
+      if (req.method === 'POST' && url.pathname === '/api/copy/closepos') return handleCopyClosePos(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/unbind') return handleCopyUnbind(req, env);
       return json(req, { ok: false, error: '接口不存在。' }, 404);
     } catch (e) {
