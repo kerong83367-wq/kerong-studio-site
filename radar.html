@@ -751,6 +751,14 @@ function toggleSimTrades() {
   try { localStorage.setItem('radar_sim_trades_open', simTradesOpen ? '1' : '0'); } catch (e) { /* 写不进就只改本次 */ }
   renderSimPanel();
 }
+/* 实盘执行日志折叠状态：默认收起，记住用户的展开 / 收起选择 */
+let copyLogOpen = false;
+try { copyLogOpen = localStorage.getItem('radar_copy_log_open') === '1'; } catch (e) { /* 读不到就默认收起 */ }
+function toggleCopyLog() {
+  copyLogOpen = !copyLogOpen;
+  try { localStorage.setItem('radar_copy_log_open', copyLogOpen ? '1' : '0'); } catch (e) { /* 写不进就只改本次 */ }
+  renderLivePanel();
+}
 /* 本次页面加载是否已做过开仓补录（每页只做一次，防持仓列表领先事件时重复加仓） */
 let simCaughtUp = false;
 function reconcileSim(d) {
@@ -1025,7 +1033,7 @@ function renderLivePanel() {
     '<button class="btn btn-ghost" onclick="runCopyNow()">立即同步一轮</button>' +
     '</div>' +
     '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位（实时）</h3>' + posHtml +
-    '<h3 style="margin:16px 0 8px;font-size:15px">执行日志</h3>' + logHtml +
+    '<h3 style="margin:16px 0 8px;font-size:15px">执行日志 <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px;margin-left:8px" onclick="toggleCopyLog()">' + (copyLogOpen ? '收起 ▴' : '展开 ▾') + '</button></h3>' + (copyLogOpen ? logHtml : '') +
     '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">' +
     '<button class="btn btn-ghost" style="border-color:var(--red);color:var(--red)" onclick="closeAllCopy()">一键平仓跟单仓位并停止</button>' +
     '<button class="btn btn-ghost" onclick="unbindCopy()">解绑密钥</button>' +
