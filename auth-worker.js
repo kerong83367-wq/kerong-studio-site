@@ -801,6 +801,7 @@ async function runCopyExecutor(env, username, opts) {
 }
 async function runAllCopyExecutors(env) {
   const users = await copyGetJson(env, 'copy:users', []);
+  try { await env.AUTH_KV.put('copy:cron-users', JSON.stringify(users)); } catch (e) {}
   for (const u of users) {
     try { await runCopyExecutor(env, u, {}); } catch (e) { /* 单个用户失败不影响其他 */ }
   }
@@ -1090,7 +1091,10 @@ async function handleCopyUnbind(req, env) {
 
 export default {
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runAllCopyExecutors(env));
+    ctx.waitUntil((async () => {
+      try { await env.AUTH_KV.put('copy:cron-hb', new Date().toISOString()); } catch (e) {}
+      await runAllCopyExecutors(env);
+    })());
   },
   async fetch(req, env) {
     if (req.method === 'OPTIONS') {
@@ -1107,6 +1111,11 @@ export default {
       if (req.method === 'POST' && url.pathname === '/api/login') return handleLogin(req, env);
       if (req.method === 'POST' && url.pathname === '/api/logout') return handleLogout(req, env);
       if (req.method === 'GET' && url.pathname === '/api/me') return handleMe(req, env);
+      if (req.method === 'GET' && url.pathname === '/api/cronhb') {
+        const hb = await env.AUTH_KV.get('copy:cron-hb');
+        const users = await env.AUTH_KV.get('copy:cron-users');
+        return json(req, { ok: true, cronHb: hb, cronUsers: users });
+      }
       if (req.method === 'POST' && url.pathname === '/api/copy/bind') return handleCopyBind(req, env);
       if (req.method === 'GET' && url.pathname === '/api/copy/status') return handleCopyStatus(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/settings') return handleCopySettings(req, env);
