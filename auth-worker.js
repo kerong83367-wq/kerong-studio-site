@@ -347,7 +347,7 @@ function copyRoundStep(qty, step) {
 function copyLeverageFor(settings, leaderEffLev) {
   if (settings.leverageMode === 'follow') {
     const v = Math.round(leaderEffLev || 5);
-    return Math.min(10, Math.max(1, v));
+    return Math.min(20, Math.max(1, v));
   }
   return Math.min(10, Math.max(1, parseInt(settings.fixedLeverage, 10) || 5));
 }
