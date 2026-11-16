@@ -456,6 +456,14 @@ async function copyGetJson(env, key, fallback) {
   if (!raw) return fallback;
   try { return JSON.parse(raw); } catch (e) { return fallback; }
 }
+// 心跳节流：KV 免费版每天 put 上限只有 1000 次，每分钟无条件写一次心跳（1440 次）一条就超额；改成最多 10 分钟写一次
+async function copyHeartbeat(env) {
+  try {
+    const hb = await env.AUTH_KV.get('copy:cron-hb');
+    if (hb && Date.now() - Date.parse(hb) < 10 * 60 * 1000) return;
+    await env.AUTH_KV.put('copy:cron-hb', new Date().toISOString());
+  } catch (e) {}
+}
 async function requireCopyUser(req, env) {
   const auth = req.headers.get('Authorization') || '';
   const token = auth.replace(/^Bearer\s+/i, '');
@@ -653,6 +661,7 @@ async function runCopyExecutor(env, username, opts) {
   opts = opts || {};
   const keys = await copyGetJson(env, `copy:${username}:keys`, null);
   if (!keys) return { ran: false, reason: '未绑定密钥' };
+  const hostAtLoad = keys.host; // 本轮结束时只有 host 真变了才回写 keys
   const settings = await copyGetJson(env, `copy:${username}:settings`, null) ||
     { capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
   if (!settings.enabled && !opts.manual) return { ran: false, reason: '未启用' };
@@ -688,7 +697,9 @@ async function runCopyExecutor(env, username, opts) {
       posSnapshot.push({ symbol: pr.symbol, side, qty: Math.abs(amt), entryPrice: pr.entryPrice, markPrice: mark, unrealizedPnl: pr.uPnl, liqPrice: pr.liqPrice || 0, managed: tracked.has(key) });
       if (tracked.has(key)) actual[key] = { symbol: pr.symbol, side, qty: amt, markPrice: mark };
     }
-    if (JSON.stringify(state.positions || null) !== JSON.stringify(posSnapshot)) changed = true; // 仓位快照变了就落盘，免得面板一直显示旧数量
+    // 只比对稳定字段（品种/方向/数量/均价）：标记价和浮盈每分钟都在抖，算进比较会让 state 每轮必写、白烧 KV put 额度
+    const snapStable = s => JSON.stringify((s || []).map(p => [p.symbol, p.side, p.qty, p.entryPrice]));
+    if (snapStable(state.positions) !== snapStable(posSnapshot)) changed = true; // 仓位真的变了才落盘，免得面板一直显示旧数量
     state.positions = posSnapshot;
     state.account = { usdtAvailable: avail, usdtBalance: acct.balance };
     // 解锁：带单员已经完全平掉的锁定仓，解除锁定并清掉它的止盈止损（他下次重开会正常跟）
@@ -798,13 +809,18 @@ async function runCopyExecutor(env, username, opts) {
   if (changed || Date.now() - lastWrite > 10 * 60 * 1000) {
     state._lastWrite = Date.now();
     await env.AUTH_KV.put(`copy:${username}:state`, JSON.stringify(state));
-    if (keys.host) await env.AUTH_KV.put(`copy:${username}:keys`, JSON.stringify(keys));
   }
+  // keys 只在探活切换了 host 时才需要落盘，以前每次写 state 都顺带写一遍，白烧 put 额度
+  if (keys.host !== hostAtLoad) await env.AUTH_KV.put(`copy:${username}:keys`, JSON.stringify(keys));
   return { ran: true, ordersPlaced };
 }
 async function runAllCopyExecutors(env) {
   const users = await copyGetJson(env, 'copy:users', []);
-  try { await env.AUTH_KV.put('copy:cron-users', JSON.stringify(users)); } catch (e) {}
+  // cron-users 只是诊断镜像，用户列表没变就不写（以前每轮无条件写一遍，白烧 put 额度）
+  try {
+    const curUsers = await env.AUTH_KV.get('copy:cron-users');
+    if (curUsers !== JSON.stringify(users)) await env.AUTH_KV.put('copy:cron-users', JSON.stringify(users));
+  } catch (e) {}
   for (const u of users) {
     try { await runCopyExecutor(env, u, {}); } catch (e) { /* 单个用户失败不影响其他 */ }
   }
@@ -1095,7 +1111,7 @@ async function handleCopyUnbind(req, env) {
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil((async () => {
-      try { await env.AUTH_KV.put('copy:cron-hb', new Date().toISOString()); } catch (e) {}
+      await copyHeartbeat(env);
       await runAllCopyExecutors(env);
     })());
   },
@@ -1124,7 +1140,7 @@ export default {
         if (!env.TICK_TOKEN || tickToken !== env.TICK_TOKEN) {
           return json(req, { ok: false, error: 'tick token 不对。' }, 403);
         }
-        try { await env.AUTH_KV.put('copy:cron-hb', new Date().toISOString()); } catch (e) {}
+        await copyHeartbeat(env);
         await runAllCopyExecutors(env);
         return json(req, { ok: true });
       }
