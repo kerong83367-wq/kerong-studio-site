@@ -6,32 +6,32 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-18T03:24:49.726817+08:00",
-  "equity": 336662.15931632,
-  "equityUpdatedAt": "2026-11-18T03:24:49.726817+08:00",
-  "marginBalance": 336662.15931632,
-  "marginBalanceUpdatedAt": "2026-11-18T03:24:49.726817+08:00",
+  "lastUpdatedAt": "2026-11-18T09:44:02.43944+08:00",
+  "equity": 368119.4366621,
+  "equityUpdatedAt": "2026-11-18T09:44:02.439439+08:00",
+  "marginBalance": 368119.4366621,
+  "marginBalanceUpdatedAt": "2026-11-18T09:44:02.439439+08:00",
   "equityStale": false,
-  "effectiveLeverage": 2.0814495003627536,
+  "effectiveLeverage": 2.7924334724415756,
   "valuationComplete": true,
-  "notional": 700745.2833,
-  "unrealizedPnl": 725.7251576350383,
+  "notional": 1027949.0367915847,
+  "unrealizedPnl": 33918.85452153757,
   "positionCount": 2,
   "positions": [
     {
       "symbol": "NVDAUSDT",
       "side": "LONG",
-      "quantity": 2591.21,
+      "quantity": 4497.59,
       "quantityUnit": "币",
-      "entryPrice": 154.37776800956232,
-      "markPrice": 154.26,
+      "entryPrice": 154.31282984259127,
+      "markPrice": 159.59001594,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 399720.0546,
-      "unrealizedPnl": -305.1616440579945,
+      "notional": 717770.4597915846,
+      "unrealizedPnl": 23734.619419844534,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-17T19:24:49.323098166Z",
-      "updatedAt": "2026-11-18T03:24:49.726115+08:00"
+      "priceUpdatedAt": "2026-11-18T01:44:10.808079638Z",
+      "updatedAt": "2026-11-18T09:44:02.438766+08:00"
     },
     {
       "symbol": "SKHYNIXUSDT",
@@ -39,17 +39,32 @@
       "quantity": 364.53000000000003,
       "quantityUnit": "币",
       "entryPrice": 822.9620110781196,
-      "markPrice": 825.79,
+      "markPrice": 850.9,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 301025.22870000004,
-      "unrealizedPnl": 1030.8868016930328,
+      "notional": 310178.577,
+      "unrealizedPnl": 10184.235101693039,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-17T19:24:49.323098166Z",
-      "updatedAt": "2026-11-18T03:24:49.726344+08:00"
+      "priceUpdatedAt": "2026-11-18T01:44:10.808079638Z",
+      "updatedAt": "2026-11-18T09:44:02.438989+08:00"
     }
   ],
   "events": [
+    {
+      "id": 3926,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "NVDAUSDT",
+      "side": "LONG",
+      "action": "ADD_LONG",
+      "quantity": 1906.38,
+      "quantityUnit": "币",
+      "price": 154.2245639,
+      "beforeQuantity": 2591.21,
+      "afterQuantity": 4497.59,
+      "sourceTime": "2026-11-18T04:36:31.018+08:00",
+      "detectedAt": "2026-11-18T04:38:44.989671+08:00"
+    },
     {
       "id": 3925,
       "traderId": 2,
@@ -1534,21 +1549,6 @@
       "afterQuantity": 3218.624,
       "sourceTime": "2026-10-30T05:19:46.638+08:00",
       "detectedAt": "2026-10-30T05:21:52.586302+08:00"
-    },
-    {
-      "id": 3243,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ETHUSDT",
-      "side": "SHORT",
-      "action": "OPEN_SHORT",
-      "quantity": 2231.024,
-      "quantityUnit": "币",
-      "price": 2254.44466,
-      "beforeQuantity": 0.0,
-      "afterQuantity": 2231.024,
-      "sourceTime": "2026-10-30T05:00:29.213+08:00",
-      "detectedAt": "2026-10-30T05:02:35.54859+08:00"
     }
   ],
   "history": {
@@ -3557,9 +3557,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-17T19:22:14.541Z",
+    "updatedAt": "2026-11-18T01:42:23.692Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-18T03:24:54.425387+08:00",
+  "fetchedAt": "2026-11-18T09:44:15.259323+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
