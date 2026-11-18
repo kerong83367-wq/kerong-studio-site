@@ -390,6 +390,26 @@ function checkNewOpens(d) {
   const parts = freshOpens.slice(0, 2).map(describeOpen)
     .concat(freshCloses.slice(0, 3).map(describeClose)).slice(0, 4);
   speak(parts.join('；'));
+  // 与语音提醒同一时刻，立刻让云端执行器同步一轮，不必再等每分钟的定时轮次；
+  // 多个标签页用 localStorage 时间戳去重（20 秒内只触发一次），失败静默、定时轮次兜底。
+  try {
+    const now = Date.now();
+    if (now - +(localStorage.getItem('radar_auto_run_at') || 0) > 20000) {
+      localStorage.setItem('radar_auto_run_at', String(now));
+      autoRunCopy();
+    }
+  } catch (e) { /* 忽略 */ }
+}
+/* 页面触发的一轮同步：先查状态确认已绑定且已启用才发（/api/copy/run 是手动通道，
+   会绕过“未启用”检查，所以这里必须自己把关）；未登录/未启用就静默跳过。 */
+async function autoRunCopy() {
+  try {
+    if (!localStorage.getItem('radar_token')) return;
+    const st = await copyApi('/api/copy/status');
+    if (!st || !st.ok || !st.bound || !st.settings || !st.settings.enabled) return;
+    await copyApi('/api/copy/run', 'POST', {});
+    refreshLiveStatus();
+  } catch (e) { /* 静默失败，云端每分钟轮次照常兜底 */ }
 }
 
 /* ---- 收益率曲线（按截图走势还原） ---- */
