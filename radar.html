@@ -1080,8 +1080,6 @@ function renderLivePanel() {
     '</div>' +
     '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位</h3>' + posHtml + lockedHtml +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">' +
-    '<label style="font-size:13px;color:var(--muted)">备用锚定：他开仓金额 (U)<br><input id="cpAnchorLeader" type="number" min="1000" max="10000000" step="1000" value="' + (s.anchorLeader || 380000) + '" style="width:130px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
-    '<label style="font-size:13px;color:var(--muted)">备用锚定：我方开仓金额 (U)<br><input id="cpAnchorMine" type="number" min="1" max="10000" step="1" value="' + (s.anchorMine || 50) + '" style="width:110px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
     '<label style="font-size:13px;color:var(--muted)">杠杆模式<br><select id="cpLevMode" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"><option value="fixed"' + (s.leverageMode === 'fixed' ? ' selected' : '') + '>固定杠杆</option><option value="follow"' + (s.leverageMode === 'follow' ? ' selected' : '') + '>跟随他的实际杠杆（封顶 20）</option></select></label>' +
     '<label style="font-size:13px;color:var(--muted)">固定杠杆 (1–10)<br><input id="cpLev" type="number" min="1" max="10" step="1" value="' + s.fixedLeverage + '" style="width:90px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
     '<label style="font-size:13px;color:var(--muted)">执行模式<br><select id="cpDry" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"><option value="1"' + (s.dryRun ? ' selected' : '') + '>演练（只记日志，不下真单）</option><option value="0"' + (!s.dryRun ? ' selected' : '') + '>实盘（真实下单）</option></select></label>' +
@@ -1124,8 +1122,6 @@ async function saveCopySettings() {
     if (!confirm('切换到实盘模式后，执行器会用你绑定的交易所账户里的真实资金下单。确定要切到实盘吗？')) return;
   }
   const body = {
-    anchorLeader: parseFloat(document.getElementById('cpAnchorLeader').value),
-    anchorMine: parseFloat(document.getElementById('cpAnchorMine').value),
     leverageMode: document.getElementById('cpLevMode').value,
     fixedLeverage: parseInt(document.getElementById('cpLev').value, 10),
     dryRun: dryVal,
