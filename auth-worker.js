@@ -240,6 +240,13 @@ const COPY_HOSTS = ['https://fapi.binance.com', 'https://www.binance.com/fapi'];
 const OKX_HOSTS = ['https://www.okx.com.', 'https://app.okx.com', 'https://www.okx.com']; // www.okx.com 从 Worker 出口被 CF 拦 1016；带尾点的主机名 www.okx.com. 与 www 同一密钥库、可能绕开拦截，放第一；app.okx.com 是另一套集群（部分账户的 Key 在那边查不到、回 50119），只作备选；aws.okx.com 实测连不通
 const COPY_MAX_ORDERS_PER_RUN = 10;
 const COPY_MIN_ADJUST_NOTIONAL = 15; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外
+// 仓位锚定规则（2026-11-18 23:56 用户拍板，取代“资金上限 ÷ 带单员权益”）：
+// 我方每笔仓位名义金额 = 带单员该笔仓位名义金额 × ANCHOR_RATIO，默认 50/380,000
+// （他开 38 万 → 我方 50 U；76 万 → 100 U；19 万 → 25 U）。杠杆继续跟随他的，
+// 保证金护栏只在钱实在不够时最后兜底等比缩小，不再决定仓位大小。
+const ANCHOR_LEADER_DEFAULT = 380000;
+const ANCHOR_MINE_DEFAULT = 50;
+const ANCHOR_RATIO_DEFAULT = ANCHOR_MINE_DEFAULT / ANCHOR_LEADER_DEFAULT;
 
 async function hmacHex(secret, msg) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -353,14 +360,25 @@ function copyLeverageFor(settings, leaderEffLev) {
   }
   return Math.min(10, Math.max(1, parseInt(settings.fixedLeverage, 10) || 5));
 }
-function copyDesiredPositions(leaderPositions, leaderEquity, capitalCap) {
-  // 目标仓位（带符号：多 + / 空 −）= 带单员数量 × (资金上限 ÷ 带单员权益)
+function copyAnchorRatio(settings) {
+  const r = settings && parseFloat(settings.anchorRatio);
+  if (isFinite(r) && r > 0) return r;
+  // 旧设置没有 anchorRatio 时按用户拍板的 50/380,000 走，不回落到已废弃的资金上限算法
+  const leader = settings && parseFloat(settings.anchorLeader);
+  const mine = settings && parseFloat(settings.anchorMine);
+  if (isFinite(leader) && leader > 0 && isFinite(mine) && mine > 0) return mine / leader;
+  return 50 / 380000; // 与 ANCHOR_RATIO_DEFAULT 同值；此处写死字面量，让纯计算块保持可独立单测
+}
+function copyDesiredPositions(leaderPositions, anchorRatio) {
+  // 目标仓位（带符号：多 + / 空 −）：先算带单员该笔仓位的名义金额（数量 × 标记价），
+  // 按锚定比例换算成我方名义金额，再除以标记价换回数量。标记价缺失时退化为按数量同比例。
   const out = {};
-  if (!leaderEquity || leaderEquity <= 0 || !capitalCap || capitalCap <= 0) return out;
-  const ratio = capitalCap / leaderEquity;
+  if (!anchorRatio || anchorRatio <= 0) return out;
   for (const p of leaderPositions || []) {
-    const signed = (p.side === 'LONG' ? 1 : -1) * p.quantity * ratio;
-    out[p.symbol + '_' + p.side] = { symbol: p.symbol, side: p.side, qty: signed, markPrice: p.markPrice, ratio };
+    const mark = p.markPrice || 0;
+    const qty = mark > 0 ? (p.quantity * mark * anchorRatio) / mark : p.quantity * anchorRatio;
+    const signed = (p.side === 'LONG' ? 1 : -1) * qty;
+    out[p.symbol + '_' + p.side] = { symbol: p.symbol, side: p.side, qty: signed, markPrice: p.markPrice, ratio: anchorRatio };
   }
   return out;
 }
@@ -663,7 +681,7 @@ async function runCopyExecutor(env, username, opts) {
   if (!keys) return { ran: false, reason: '未绑定密钥' };
   const hostAtLoad = keys.host; // 本轮结束时只有 host 真变了才回写 keys
   const settings = await copyGetJson(env, `copy:${username}:settings`, null) ||
-    { capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
+    { capitalCap: 300, anchorLeader: 380000, anchorMine: 50, anchorRatio: 50 / 380000, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
   if (!settings.enabled && !opts.manual) return { ran: false, reason: '未启用' };
   const state = await copyGetJson(env, `copy:${username}:state`, { log: [] });
   // 止盈止损与锁定（手动平仓/止盈/止损后锁定该仓，带单员完全平掉才解锁）：单独存 guards，面板接口也会读写
@@ -749,8 +767,9 @@ async function runCopyExecutor(env, username, opts) {
       }
       changed = true;
     }
-    // 目标仓位 + 保证金护栏：预计占用超过可用余额 95% 就等比缩小
-    let desired = copyDesiredPositions(leader.positions, leader.equity, settings.capitalCap);
+    // 目标仓位 + 保证金护栏：仓位大小由锚定规则定（他的名义金额 × 50/380,000），
+    // 护栏只在预计占用超过可用余额 95% 时等比缩小兜底，不再决定仓位大小
+    let desired = copyDesiredPositions(leader.positions, copyAnchorRatio(settings));
     for (const k in guards.locked) delete desired[k]; // 锁定的仓不再跟回
     const lev = copyLeverageFor(settings, leader.effectiveLeverage);
     let marginNeed = 0;
@@ -867,7 +886,7 @@ async function bindBinance(req, env, username, key, secret) {
   if (!users.includes(username)) { users.push(username); await env.AUTH_KV.put('copy:users', JSON.stringify(users)); }
   const existing = await copyGetJson(env, `copy:${username}:settings`, null);
   if (!existing) {
-    await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify({ capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true }));
+    await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify({ capitalCap: 300, anchorLeader: 380000, anchorMine: 50, anchorRatio: 50 / 380000, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true }));
   }
   return json(req, {
     ok: true, exchange: 'binance', host: keys.host,
@@ -925,7 +944,7 @@ async function bindOkx(req, env, username, key, secret, passphrase) {
   if (!users.includes(username)) { users.push(username); await env.AUTH_KV.put('copy:users', JSON.stringify(users)); }
   const existing = await copyGetJson(env, `copy:${username}:settings`, null);
   if (!existing) {
-    await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify({ capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true }));
+    await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify({ capitalCap: 300, anchorLeader: 380000, anchorMine: 50, anchorRatio: 50 / 380000, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true }));
   }
   return json(req, {
     ok: true, exchange: 'okx', host: keys.host,
@@ -956,11 +975,20 @@ async function handleCopySettings(req, env) {
   const body = await req.json().catch(() => null);
   if (!body) return json(req, { ok: false, error: '请求格式不对。' });
   const cur = await copyGetJson(env, `copy:${username}:settings`, null) ||
-    { capitalCap: 300, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
+    { capitalCap: 300, anchorLeader: 380000, anchorMine: 50, anchorRatio: 50 / 380000, leverageMode: 'fixed', fixedLeverage: 5, enabled: false, dryRun: true };
   if (body.capitalCap !== undefined) {
     const v = parseFloat(body.capitalCap);
     if (!isFinite(v) || v < 50 || v > 100000) return json(req, { ok: false, error: '跟单资金上限要在 50–100,000 USDT 之间。' });
-    cur.capitalCap = v;
+    cur.capitalCap = v; // 遗留字段：2026-11-18 23:56 起仓位大小改由锚定比例决定，不再用它算仓位，仅保留兼容
+  }
+  if (body.anchorLeader !== undefined || body.anchorMine !== undefined) {
+    const leader = body.anchorLeader !== undefined ? parseFloat(body.anchorLeader) : parseFloat(cur.anchorLeader);
+    const mine = body.anchorMine !== undefined ? parseFloat(body.anchorMine) : parseFloat(cur.anchorMine);
+    if (!isFinite(leader) || leader < 1000 || leader > 10000000) return json(req, { ok: false, error: '锚定：他的仓位金额要在 1,000–10,000,000 USDT 之间。' });
+    if (!isFinite(mine) || mine < 1 || mine > 10000) return json(req, { ok: false, error: '锚定：我方仓位金额要在 1–10,000 USDT 之间。' });
+    cur.anchorLeader = leader;
+    cur.anchorMine = mine;
+    cur.anchorRatio = mine / leader;
   }
   if (body.leverageMode !== undefined) {
     if (!['fixed', 'follow'].includes(body.leverageMode)) return json(req, { ok: false, error: '杠杆模式不对。' });
