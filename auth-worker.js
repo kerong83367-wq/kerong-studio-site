@@ -229,8 +229,8 @@ async function handleRadar(req) {
 //   不进页面与日志；状态接口只回密钥后 4 位。
 // - 默认演练模式（dryRun=true）：只算单、记日志，绝不下单；
 //   用户在子页面明确切换后才实盘。
-// - 护栏：跟单资金上限、单轮最多 10 单、小额调整（<15 USDT 名
-//   义）不追、保证金不足时按比例缩小、数据源拉不到就整轮跳过
+// - 护栏：单轮最多 10 单、小额调整（<5 USDT 名义）不追、
+//   保证金不足时按比例缩小、数据源拉不到就整轮跳过
 //   （绝不用旧数据下单）、一键平仓并停止、随时解绑。
 // - 已知边界（子页面已向用户明示）：上游检出延迟 2–3 分钟、
 //   市价单滑点、Cloudflare 出口 IP 不固定导致密钥无法设 IP 白
@@ -239,9 +239,12 @@ async function handleRadar(req) {
 const COPY_HOSTS = ['https://fapi.binance.com', 'https://www.binance.com/fapi'];
 const OKX_HOSTS = ['https://www.okx.com.', 'https://app.okx.com', 'https://www.okx.com']; // www.okx.com 从 Worker 出口被 CF 拦 1016；带尾点的主机名 www.okx.com. 与 www 同一密钥库、可能绕开拦截，放第一；app.okx.com 是另一套集群（部分账户的 Key 在那边查不到、回 50119），只作备选；aws.okx.com 实测连不通
 const COPY_MAX_ORDERS_PER_RUN = 10;
-const COPY_MIN_ADJUST_NOTIONAL = 15; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外
-// 仓位锚定规则（2026-11-18 23:56 用户拍板，取代“资金上限 ÷ 带单员权益”）：
-// 我方每笔仓位名义金额 = 带单员该笔仓位名义金额 × ANCHOR_RATIO，默认 50/380,000
+const COPY_MIN_ADJUST_NOTIONAL = 5; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外；2026-11-19 由 15 降到 5（用户拍板）
+// 仓位比例规则（2026-11-19 用户拍板，取代固定锚定为主算法）：默认按双方权益比例——
+// 我方每笔仓位名义金额 = 带单员该笔名义金额 ×（我方权益 ÷ 带单员权益），
+// 两边仓位占各自权益的百分比始终一致（例：他权益 38 万、开 10 万＝26.3%，我方也开我方权益的 26.3%）。
+// 权益每轮现读、比例自动跟着变（复利）；带单员权益数据异常时回落到下面的锚定比例兜底。
+// 锚定规则（2026-11-18 23:56 拍板，现为备用）：名义金额 × ANCHOR_RATIO，默认 50/380,000
 // （他开 38 万 → 我方 50 U；76 万 → 100 U；19 万 → 25 U）。杠杆继续跟随他的，
 // 保证金护栏只在钱实在不够时最后兜底等比缩小，不再决定仓位大小。
 const ANCHOR_LEADER_DEFAULT = 380000;
@@ -368,6 +371,17 @@ function copyAnchorRatio(settings) {
   const mine = settings && parseFloat(settings.anchorMine);
   if (isFinite(leader) && leader > 0 && isFinite(mine) && mine > 0) return mine / leader;
   return 50 / 380000; // 与 ANCHOR_RATIO_DEFAULT 同值；此处写死字面量，让纯计算块保持可独立单测
+}
+function copySizingRatio(settings, ourEquity, leader) {
+  // 本轮仓位比例：默认权益比例（我方权益 ÷ 带单员权益）。带单员权益不可信时回落锚定比例，绝不用异常比例下单：
+  // 权益缺失/非正、数据源标 equityStale、或他权益不到我方 20 倍（疑似他把资金提出组合后的残值——
+  // 2026-11-19 实测他空仓时 equity 只剩 500.29，而带仓时约 38 万；残值算出的比例会放大十几倍）。
+  const le = leader ? parseFloat(leader.equity) : NaN;
+  const oe = parseFloat(ourEquity);
+  if (isFinite(le) && le > 0 && isFinite(oe) && oe > 0 && leader.equityStale !== true && le >= oe * 20) {
+    return { ratio: oe / le, source: 'equity' };
+  }
+  return { ratio: copyAnchorRatio(settings), source: 'anchor' };
 }
 function copyDesiredPositions(leaderPositions, anchorRatio) {
   // 目标仓位（带符号：多 + / 空 −）：先算带单员该笔仓位的名义金额（数量 × 标记价），
@@ -767,9 +781,18 @@ async function runCopyExecutor(env, username, opts) {
       }
       changed = true;
     }
-    // 目标仓位 + 保证金护栏：仓位大小由锚定规则定（他的名义金额 × 50/380,000），
+    // 目标仓位 + 保证金护栏：仓位大小按双方权益比例定（他权益数据异常时回落锚定比例），
     // 护栏只在预计占用超过可用余额 95% 时等比缩小兜底，不再决定仓位大小
-    let desired = copyDesiredPositions(leader.positions, copyAnchorRatio(settings));
+    const sizing = copySizingRatio(settings, acct.balance, leader);
+    if (sizing.source !== state.sizingSource) {
+      copyLog(state, { action: '仓位比例', note: sizing.source === 'equity'
+        ? '按权益比例：我方权益 ' + Math.round(acct.balance) + ' U ÷ 他权益 ' + Math.round(parseFloat(leader.equity)) + ' U，比例约 1/' + Math.round(1 / sizing.ratio)
+        : '他权益数据异常或过小，本轮起回落锚定比例 1/' + Math.round(1 / sizing.ratio) });
+      state.sizingSource = sizing.source;
+      changed = true;
+    }
+    state.sizing = { source: sizing.source, ratio: sizing.ratio, ourEquity: acct.balance, leaderEquity: parseFloat(leader.equity) || null };
+    let desired = copyDesiredPositions(leader.positions, sizing.ratio);
     for (const k in guards.locked) delete desired[k]; // 锁定的仓不再跟回
     const lev = copyLeverageFor(settings, leader.effectiveLeverage);
     let marginNeed = 0;
@@ -964,7 +987,7 @@ async function handleCopyStatus(req, env) {
   const guards = await copyGetJson(env, `copy:${username}:guards`, { tpsl: {}, locked: {} });
   return json(req, {
     ok: true, bound: true, exchange: keys.exchange || 'binance', posMode: keys.posMode || null, keyLast4: keys.key.slice(-4), host: keys.host, boundAt: keys.boundAt,
-    settings, guards, state: state ? { lastRun: state.lastRun, lastError: state.lastError, account: state.account, positions: state.positions, log: state.log, lastLev: state.lastLev } : null,
+    settings, guards, state: state ? { lastRun: state.lastRun, lastError: state.lastError, account: state.account, positions: state.positions, log: state.log, lastLev: state.lastLev, sizing: state.sizing || null } : null,
   });
 }
 async function handleCopySettings(req, env) {
