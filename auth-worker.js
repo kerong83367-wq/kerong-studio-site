@@ -361,7 +361,7 @@ function copyLeverageFor(settings, leaderEffLev) {
     const v = Math.round(leaderEffLev || 5);
     return Math.min(20, Math.max(1, v));
   }
-  return Math.min(10, Math.max(1, parseInt(settings.fixedLeverage, 10) || 5));
+  return Math.min(20, Math.max(1, parseInt(settings.fixedLeverage, 10) || 5));
 }
 function copyAnchorRatio(settings) {
   const r = settings && parseFloat(settings.anchorRatio);
@@ -810,6 +810,16 @@ async function runCopyExecutor(env, username, opts) {
     }
     const intents = copyComputeOrders(desired, actual, marks, filters);
     const levSetDone = {};
+    // 杠杆每轮先对齐到设定值（用户 2026-11-20 拍板：固定 20 倍、全仓）：不只开仓那一轮设，
+    // 已开着的仓本轮也要调到位，否则改了设置旧仓杠杆不变、保证金还是老样子
+    if (!settings.dryRun) {
+      for (const k in desired) {
+        const sym = desired[k].symbol;
+        if (levSetDone[sym]) continue;
+        levSetDone[sym] = true;
+        try { await copyEnsureLevX(env, keys, sym, lev, filters[sym]); } catch (e) { /* 设杠杆失败不挡对账 */ }
+      }
+    }
     for (const it of intents.slice(0, COPY_MAX_ORDERS_PER_RUN)) {
       if (settings.dryRun) {
         copyLog(state, { action: '演练', symbol: it.symbol, side: it.side, kind: it.kind, qty: it.qty, price: marks[it.symbol] || null, note: it.note + '（演练模式，未真实下单）' });
@@ -1019,7 +1029,7 @@ async function handleCopySettings(req, env) {
   }
   if (body.fixedLeverage !== undefined) {
     const v = parseInt(body.fixedLeverage, 10);
-    if (!isFinite(v) || v < 1 || v > 10) return json(req, { ok: false, error: '固定杠杆要在 1–10 倍之间。' });
+    if (!isFinite(v) || v < 1 || v > 20) return json(req, { ok: false, error: '固定杠杆要在 1–20 倍之间。' });
     cur.fixedLeverage = v;
   }
   if (body.enabled !== undefined) cur.enabled = !!body.enabled;
