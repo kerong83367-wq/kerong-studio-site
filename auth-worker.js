@@ -239,7 +239,7 @@ async function handleRadar(req) {
 const COPY_HOSTS = ['https://fapi.binance.com', 'https://www.binance.com/fapi'];
 const OKX_HOSTS = ['https://www.okx.com.', 'https://app.okx.com', 'https://www.okx.com']; // www.okx.com 从 Worker 出口被 CF 拦 1016；带尾点的主机名 www.okx.com. 与 www 同一密钥库、可能绕开拦截，放第一；app.okx.com 是另一套集群（部分账户的 Key 在那边查不到、回 50119），只作备选；aws.okx.com 实测连不通
 const COPY_MAX_ORDERS_PER_RUN = 10;
-const COPY_MIN_ADJUST_NOTIONAL = 5; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外；2026-11-19 由 15 降到 5（用户拍板）
+const COPY_MIN_ADJUST_NOTIONAL = 3; // 小于这个名义额的仓位偏差不追（省手续费、防抖动），全平除外；2026-11-19 由 15 降到 5、2026-11-21 再降到 3（用户拍板）
 // 仓位比例规则（2026-11-19 用户拍板，取代固定锚定为主算法）：默认按双方权益比例——
 // 我方每笔仓位名义金额 = 带单员该笔名义金额 ×（我方权益 ÷ 带单员权益），
 // 两边仓位占各自权益的百分比始终一致（例：他权益 38 万、开 10 万＝26.3%，我方也开我方权益的 26.3%）。
@@ -565,11 +565,11 @@ async function okxFetchFilters(env, keys) {
   for (const instId in inst) {
     const m = inst[instId];
     const symbol = instId.replace(/-USDT-SWAP$/, '') + 'USDT';
-    filters[symbol] = { stepSize: m.lotSz * m.ctVal, minQty: m.minSz * m.ctVal, minNotional: 5, okx: { instId, ctVal: m.ctVal, lotSz: m.lotSz, scale: 1 } };
+    filters[symbol] = { stepSize: m.lotSz * m.ctVal, minQty: m.minSz * m.ctVal, minNotional: 3, okx: { instId, ctVal: m.ctVal, lotSz: m.lotSz, scale: 1 } };
     // 币安 1000 前缀品种（1000PEPEUSDT）：欧易是 PEPE-USDT-SWAP，数量单位差 1000 倍，登记别名
     const alias = '1000' + symbol;
     if (!filters[alias]) {
-      filters[alias] = { stepSize: (m.lotSz * m.ctVal) / 1000, minQty: (m.minSz * m.ctVal) / 1000, minNotional: 5, okx: { instId, ctVal: m.ctVal, lotSz: m.lotSz, scale: 1000 } };
+      filters[alias] = { stepSize: (m.lotSz * m.ctVal) / 1000, minQty: (m.minSz * m.ctVal) / 1000, minNotional: 3, okx: { instId, ctVal: m.ctVal, lotSz: m.lotSz, scale: 1000 } };
     }
   }
   return filters;
