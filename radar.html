@@ -391,10 +391,11 @@ function checkNewOpens(d) {
     .concat(freshCloses.slice(0, 3).map(describeClose)).slice(0, 4);
   speak(parts.join('；'));
   // 与语音提醒同一时刻，立刻让云端执行器同步一轮，不必再等每分钟的定时轮次；
-  // 多个标签页用 localStorage 时间戳去重（20 秒内只触发一次），失败静默、定时轮次兜底。
+  // 多个标签页用 localStorage 时间戳去重（5 秒内只触发一次；执行器下单前有实时复核、不会重复下单），
+  // 失败静默、定时轮次兜底。
   try {
     const now = Date.now();
-    if (now - +(localStorage.getItem('radar_auto_run_at') || 0) > 20000) {
+    if (now - +(localStorage.getItem('radar_auto_run_at') || 0) > 5000) {
       localStorage.setItem('radar_auto_run_at', String(now));
       autoRunCopy();
     }

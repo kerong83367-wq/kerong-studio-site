@@ -745,11 +745,10 @@ async function runCopyExecutor(env, username, opts) {
   let ordersPlaced = 0;
   let changed = !!opts.manual; // 手动触发的一轮必落盘，状态页立刻能看到最新持仓
   try {
-    const leader = await copyFetchLeader();
-    const acct = await copyFetchAccountX(env, keys);
+    // 三路拉取互相独立，并行发（以前串行一路等一路，语音触发的即时轮次白白多等几秒）
+    const [leader, acct, filters] = await Promise.all([copyFetchLeader(), copyFetchAccountX(env, keys), copyFetchFiltersX(env, keys)]);
     if (copyExch(keys) === 'okx') okxAliasAdjust(acct.positions, new Set((leader.positions || []).map(p => p.symbol)));
     const avail = acct.avail;
-    const filters = await copyFetchFiltersX(env, keys);
     const marks = {};
     (leader.positions || []).forEach(p => { marks[p.symbol] = p.markPrice; });
     // 账户实际仓位（带符号），只管理「带单员当前持有 ∪ 历史跟过的」品种，避免碰用户自己手动开的其他仓
@@ -875,8 +874,10 @@ async function runCopyExecutor(env, username, opts) {
     const intents = copyComputeOrders(desired, actual, marks, filters);
     const levSetDone = {};
     // 杠杆每轮先对齐到设定值（用户 2026-11-20 拍板：固定 20 倍、全仓）：不只开仓那一轮设，
-    // 已开着的仓本轮也要调到位，否则改了设置旧仓杠杆不变、保证金还是老样子
-    if (!settings.dryRun) {
+    // 已开着的仓本轮也要调到位，否则改了设置旧仓杠杆不变、保证金还是老样子。
+    // 例外：语音/手动触发的即时轮次（opts.manual）跳过全量对齐，只给真正要下的单逐单设（订单循环里有），
+    // 省下几秒、语音一响尽快成交；全量对齐由每分钟的定时轮次照旧兜底。
+    if (!settings.dryRun && !opts.manual) {
       for (const k in desired) {
         const sym = desired[k].symbol;
         if (levSetDone[sym]) continue;
@@ -884,7 +885,43 @@ async function runCopyExecutor(env, username, opts) {
         try { await copyEnsureLevX(env, keys, sym, lev, filters[sym]); } catch (e) { /* 设杠杆失败不挡对账 */ }
       }
     }
+    // 下单前实时复核（只管开/加仓单）：本轮开头的持仓快照可能已被并发的另一轮改掉——
+    // 一轮跑几十秒、定时轮次会互相重叠，2026-11-21 22:07 就因此把 BTC 重复开了两笔（0.003+0.006）。
+    // 真下单前重拉一次账户，按最新持仓重算差额：已对齐的跳过、差额变小的按剩余量下、方向已过的跳过。
+    if (!settings.dryRun) {
+      const openIntents = intents.filter(x => x.kind === 'OPEN' || x.kind === 'ADJUST');
+      if (openIntents.length) {
+        try {
+          const fresh = await copyFetchAccountX(env, keys);
+          if (copyExch(keys) === 'okx') okxAliasAdjust(fresh.positions, new Set((leader.positions || []).map(p => p.symbol)));
+          const freshQty = {};
+          for (const pr of fresh.positions) {
+            if (!pr.qtySigned) continue;
+            freshQty[pr.symbol + '_' + (pr.qtySigned > 0 ? 'LONG' : 'SHORT')] = pr.qtySigned;
+          }
+          for (const it of openIntents) {
+            const key = it.symbol + '_' + it.side;
+            const target = desired[key] ? desired[key].qty : 0;
+            const cur = freshQty[key] || 0;
+            const delta = target - cur;
+            const intended = it.orderSide === 'BUY' ? 1 : -1;
+            if (!delta || Math.sign(delta) !== intended) { it.qty = 0; continue; } // 已对齐或已越过目标：跳过
+            const f = filters[it.symbol] || {};
+            const rq = copyRoundStep(Math.abs(delta), f.stepSize || 0);
+            const mark = marks[it.symbol] || 0;
+            if (!rq || (mark && rq * mark < Math.max(f.minNotional || 5, COPY_MIN_ADJUST_NOTIONAL))) { it.qty = 0; continue; }
+            if (rq < it.qty) it.qty = rq; // 差额被另一轮吃掉一部分，只下剩余量
+            freshQty[key] = cur + intended * it.qty; // 本轮后续同品种单按已下量递减
+          }
+        } catch (e) { /* 复核失败不挡下单，按原计划走 */ }
+      }
+    }
     for (const it of intents.slice(0, COPY_MAX_ORDERS_PER_RUN)) {
+      if (it.qty <= 0) {
+        copyLog(state, { action: '跳过', symbol: it.symbol, side: it.side, kind: it.kind, note: '下单前复核：仓位已对齐（另一轮已下单），跳过重复下单' });
+        changed = true;
+        continue;
+      }
       if (settings.dryRun) {
         copyLog(state, { action: '演练', symbol: it.symbol, side: it.side, kind: it.kind, qty: it.qty, price: marks[it.symbol] || null, note: it.note + '（演练模式，未真实下单）' });
         changed = true;
