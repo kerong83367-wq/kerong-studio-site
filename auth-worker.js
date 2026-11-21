@@ -745,6 +745,17 @@ async function runCopyExecutor(env, username, opts) {
         changed = true;
       }
     }
+    // 清掉残留止盈止损：仓位已不在（带单员平了、我们也平了）时旧设置还留着，会在下次同品种同方向开仓时误触发
+    // （2026-11-21 教训：BTC 空单刚跟上就被一个来历不明的残留止盈平掉——止盈止损只能在持仓时设，仓位没了就该跟着清）
+    for (const k in guards.tpsl) {
+      if (!leaderKeys.has(k) && !actual[k]) {
+        const g = guards.tpsl[k] || {};
+        delete guards.tpsl[k];
+        guardsChanged = true;
+        copyLog(state, { action: '护栏清理', note: k.replace('_', ' ') + '：仓位已不在，清掉残留止盈止损（止盈 ' + (g.tp || '—') + ' / 止损 ' + (g.sl || '—') + '）' });
+        changed = true;
+      }
+    }
     // 止盈止损检查（每分钟一轮按标记价判断）+ 已锁定仓位还开着时重试平仓
     for (const k in actual) {
       const a = actual[k];
