@@ -396,6 +396,44 @@ function copyDesiredPositions(leaderPositions, anchorRatio) {
   }
   return out;
 }
+/* 事件驱动对齐（用户 2026-11-21 22:29 拍板）：只在他仓位真的变了（开/加/减/平）时才动单；
+   他不动仓位时，哪怕双方权益比例漂移也不补开——补开的成交价和他开仓价差太多。
+   prevLeader = 上轮基线 {key: 带符号数量}；数量变化 ≤0.5% 不算变化且不更新基线（小变化攒到下次一起算）。
+   返回 { desired, prevLeader, pending, changedKeys, baseline }：
+   - 变化的 key：desired = 全量目标（对齐到他最新总仓 × 当前比例，成交时点贴近他的成交价）
+   - 没变的 key：我们持仓的 desired = 实际仓位（原地不动）；没持仓的不给目标（不开）
+   - 他已平掉的 key：不给目标（对账会生成全平单）
+   - pending：本轮「激活」的 key 先都标记，调用方按「还没开出且他还持有」修剪——
+     用于方向反转时新方向被旧仓挡住、下一轮旧仓平完后继续开
+   - baseline=true（还没有基线）：只记基线、持仓原地不动、不开新仓 */
+function copyEventDesired(fullDesired, actual, curLeader, prevLeader, pending) {
+  const desired = {};
+  const newPrev = {};
+  const newPending = {};
+  const changedKeys = [];
+  if (!prevLeader) {
+    for (const k in curLeader) newPrev[k] = curLeader[k];
+    for (const k in fullDesired) if (actual[k]) desired[k] = { ...fullDesired[k], qty: actual[k].qty };
+    return { desired, prevLeader: newPrev, pending: {}, changedKeys, baseline: true };
+  }
+  const allKeys = new Set([...Object.keys(curLeader), ...Object.keys(prevLeader), ...Object.keys(pending || {})]);
+  for (const k of allKeys) {
+    const cur = curLeader[k] || 0;
+    const prev = prevLeader[k] || 0;
+    const eps = Math.max(Math.abs(cur), Math.abs(prev)) * 0.005;
+    const changed = Math.abs(cur - prev) > eps;
+    if (changed) changedKeys.push(k);
+    if (cur === 0) continue; // 他已平掉：不给目标、不留基线、不挂 pending
+    newPrev[k] = changed ? cur : prev; // 没变保留旧基线，小变化攒着
+    if (changed || (pending && pending[k])) {
+      if (fullDesired[k]) desired[k] = fullDesired[k];
+      newPending[k] = true; // 调用方修剪：开出了或他平掉了就摘掉
+    } else if (actual[k] && fullDesired[k]) {
+      desired[k] = { ...fullDesired[k], qty: actual[k].qty }; // 没变且持仓：原地不动
+    }
+  }
+  return { desired, prevLeader: newPrev, pending: newPending, changedKeys, baseline: false };
+}
 function copyComputeOrders(desired, actual, marks, filters) {
   // desired/actual: {SYM_SIDE: {symbol, side, qty(带符号), markPrice?}}
   // 返回 intents: {symbol, side, kind: OPEN|ADJUST|CLOSE|WARN, orderSide, qty, reduceOnly, notional, note}
@@ -803,8 +841,23 @@ async function runCopyExecutor(env, username, opts) {
       changed = true;
     }
     state.sizing = { source: sizing.source, ratio: sizing.ratio, ourEquity: acct.balance, leaderEquity: parseFloat(leader.equity) || null };
-    let desired = copyDesiredPositions(leader.positions, sizing.ratio);
+    const fullDesired = copyDesiredPositions(leader.positions, sizing.ratio);
+    // 事件驱动（2026-11-21 用户拍板）：只在他仓位变化时对齐，他不动就不动，比例漂移不补开
+    const curLeader = {};
+    for (const p of leader.positions || []) curLeader[p.symbol + '_' + p.side] = (p.side === 'LONG' ? 1 : -1) * p.quantity;
+    const ev = copyEventDesired(fullDesired, actual, curLeader, state.prevLeader || null, state.followPending || {});
+    let desired = ev.desired;
     for (const k in guards.locked) delete desired[k]; // 锁定的仓不再跟回
+    // pending 修剪：已经开出仓的（actual 里有了）摘掉，只留还没开出且他还持有的
+    const newPending = {};
+    for (const k in ev.pending) if (!actual[k] && curLeader[k]) newPending[k] = true;
+    if (JSON.stringify(state.prevLeader || null) !== JSON.stringify(ev.prevLeader) || JSON.stringify(state.followPending || {}) !== JSON.stringify(newPending)) changed = true;
+    state.prevLeader = ev.prevLeader;
+    state.followPending = newPending;
+    if (ev.baseline) {
+      copyLog(state, { action: '跟单规则', note: '已切换事件驱动：只在他开仓/加仓/减仓/平仓时动单，他不动时不补开（基线已记录）' });
+      changed = true;
+    }
     const lev = copyLeverageFor(settings, leader.effectiveLeverage);
     let marginNeed = 0;
     for (const k in desired) marginNeed += Math.abs(desired[k].qty) * (marks[desired[k].symbol] || desired[k].markPrice || 0) / lev;
