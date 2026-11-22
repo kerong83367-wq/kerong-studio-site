@@ -1183,6 +1183,11 @@ async function handleCopySettings(req, env) {
     if (!isFinite(v) || v < 1 || v > 20) return json(req, { ok: false, error: '固定杠杆要在 1–20 倍之间。' });
     cur.fixedLeverage = v;
   }
+  if (body.principal !== undefined) {
+    const v = parseFloat(body.principal);
+    if (!isFinite(v) || v <= 0 || v > 1000000) return json(req, { ok: false, error: '本金要大于 0、最多 1,000,000 USDT。' });
+    cur.principal = v; // 本金（累计投入）：面板算总盈亏与收益率用（总盈亏 = 当前权益 − 本金），只展示、不参与仓位计算
+  }
   if (body.enabled !== undefined) cur.enabled = !!body.enabled;
   if (body.dryRun !== undefined) cur.dryRun = !!body.dryRun;
   await env.AUTH_KV.put(`copy:${username}:settings`, JSON.stringify(cur));
