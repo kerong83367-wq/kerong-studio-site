@@ -1101,6 +1101,47 @@ async function handleCopyStatus(req, env) {
     settings, guards, state: state ? { lastRun: state.lastRun, lastError: state.lastError, account: state.account, positions: state.positions, log: state.log, lastLev: state.lastLev, sizing: state.sizing || null } : null,
   });
 }
+async function handleCopyHistory(req, env) {
+  const username = await requireCopyUser(req, env);
+  if (!username) return json(req, { ok: false, error: '请先登录本站账号。' }, 401);
+  const keys = await copyGetJson(env, `copy:${username}:keys`, null);
+  if (!keys) return json(req, { ok: true, bound: false, rows: [] });
+  // 已平仓历史变化慢，KV 缓存 5 分钟，避免页面轮询反复打交易所接口
+  const cacheKey = `copy:${username}:history`;
+  const cached = await copyGetJson(env, cacheKey, null);
+  if (cached && cached.at && Date.now() - cached.at < 5 * 60 * 1000 && Array.isArray(cached.rows)) {
+    return json(req, { ok: true, bound: true, exchange: keys.exchange || 'binance', rows: cached.rows });
+  }
+  let rows = [];
+  try {
+    if (copyExch(keys) === 'okx') {
+      const res = await okxTryHosts(keys, 'GET', '/api/v5/account/positions-history?instType=SWAP&limit=30', null);
+      const inst = await okxFetchInstruments(env, keys);
+      rows = (res.data || []).map(r => {
+        const m = inst[r.instId] || {};
+        const ctVal = parseFloat(m.ctVal) || 1;
+        const closedContracts = Math.abs(parseFloat(r.closeTotalPos) || 0);
+        return {
+          symbol: String(r.instId || '').replace(/-USDT-SWAP$/, '') + 'USDT',
+          side: r.direction === 'long' ? 'LONG' : 'SHORT',
+          qty: closedContracts * ctVal,
+          entryPrice: parseFloat(r.openAvgPx) || 0,
+          exitPrice: parseFloat(r.closeAvgPx) || 0,
+          realizedPnl: parseFloat(r.realizedPnl) || 0,
+          openedAt: r.cTime ? new Date(parseInt(r.cTime, 10)).toISOString() : null,
+          closedAt: r.uTime ? new Date(parseInt(r.uTime, 10)).toISOString() : null,
+        };
+      }).filter(x => x.qty > 0);
+      rows.sort((a, b) => new Date(b.closedAt || 0) - new Date(a.closedAt || 0));
+    }
+  } catch (e) {
+    // 拉取失败时用旧缓存兜底（哪怕已过期），没有缓存就返回空列表，不让面板卡在读取中
+    if (cached && Array.isArray(cached.rows)) return json(req, { ok: true, bound: true, exchange: keys.exchange || 'binance', rows: cached.rows });
+    return json(req, { ok: true, bound: true, exchange: keys.exchange || 'binance', rows: [], error: String((e && e.message) || e) });
+  }
+  await env.AUTH_KV.put(cacheKey, JSON.stringify({ at: Date.now(), rows }));
+  return json(req, { ok: true, bound: true, exchange: keys.exchange || 'binance', rows });
+}
 async function handleCopySettings(req, env) {
   const username = await requireCopyUser(req, env);
   if (!username) return json(req, { ok: false, error: '请先登录本站账号。' }, 401);
@@ -1308,6 +1349,7 @@ export default {
       }
       if (req.method === 'POST' && url.pathname === '/api/copy/bind') return handleCopyBind(req, env);
       if (req.method === 'GET' && url.pathname === '/api/copy/status') return handleCopyStatus(req, env);
+      if (req.method === 'GET' && url.pathname === '/api/copy/history') return handleCopyHistory(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/settings') return handleCopySettings(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/run') return handleCopyRun(req, env);
       if (req.method === 'POST' && url.pathname === '/api/copy/closeall') return handleCopyCloseAll(req, env);
