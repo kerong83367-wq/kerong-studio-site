@@ -552,6 +552,14 @@ function toggleCopyLog() {
   renderLivePanel();
 }
 
+/* 实盘仓位历史记录折叠状态：默认展开，记住用户的展开 / 收起选择 */
+let copyHistOpen = true;
+try { copyHistOpen = localStorage.getItem('radar_copy_hist_open') !== '0'; } catch (e) { /* 读不到就默认展开 */ }
+function toggleCopyHist() {
+  copyHistOpen = !copyHistOpen;
+  try { localStorage.setItem('radar_copy_hist_open', copyHistOpen ? '1' : '0'); } catch (e) { /* 写不进就只改本次 */ }
+  renderLivePanel();
+}
 /* 实盘仓位历史记录：已平仓仓位，数据来自交易所（Worker 侧缓存 5 分钟）；页面 60 秒刷一次 */
 let copyHistory = null;
 let copyHistoryAt = 0;
@@ -725,7 +733,7 @@ function renderLivePanel() {
     (st.lastError ? '<span>最近异常 <b class="red">' + escHtml(st.lastError) + '</b></span>' : '<span>最近异常 <b>无</b></span>') +
     '</div>' +
     '<h3 style="margin:16px 0 8px;font-size:15px">合约账户仓位</h3>' + posHtml + lockedHtml +
-    '<h3 style="margin:16px 0 8px;font-size:15px">仓位历史记录</h3>' + histHtml +
+    '<h3 style="margin:16px 0 8px;font-size:15px">仓位历史记录 <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px;margin-left:8px" onclick="toggleCopyHist()">' + (copyHistOpen ? '收起 ▴' : '展开 ▾') + '</button></h3>' + (copyHistOpen ? histHtml : '') +
     '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px">' +
     '<label style="font-size:13px;color:var(--muted)">杠杆模式<br><select id="cpLevMode" style="background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"><option value="fixed"' + (s.leverageMode === 'fixed' ? ' selected' : '') + '>固定杠杆</option><option value="follow"' + (s.leverageMode === 'follow' ? ' selected' : '') + '>跟随他的实际杠杆（封顶 20）</option></select></label>' +
     '<label style="font-size:13px;color:var(--muted)">固定杠杆 (1–20)<br><input id="cpLev" type="number" min="1" max="20" step="1" value="' + s.fixedLeverage + '" style="width:90px;background:#2b3139;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:14px"></label>' +
