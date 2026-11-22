@@ -356,6 +356,14 @@ function copyRoundStep(qty, step) {
   if (!step || step <= 0) return qty;
   return parseFloat((Math.floor(qty / step) * step).toFixed(8));
 }
+/* 就近取整到步进（用户 2026-11-22 拍板）：开单按目标 USDT 金额下单的口径——
+   数量换算到最接近的一格步进，误差最多半格；向下取整会系统性少开一格
+   （实测 BTC 目标 0.000395 被砍成 0.0003，名义 23.3 U 只开到 17.7 U）。
+   只用于开/加/减仓的差额；全平、止盈止损、手动平仓仍用向下取整，绝不超平。 */
+function copyRoundStepNearest(qty, step) {
+  if (!step || step <= 0) return qty;
+  return parseFloat((Math.round(qty / step) * step).toFixed(8));
+}
 function copyLeverageFor(settings, leaderEffLev) {
   if (settings.leverageMode === 'follow') {
     const v = Math.round(leaderEffLev || 5);
@@ -475,9 +483,10 @@ function copyComputeOrders(desired, actual, marks, filters) {
     const rawQty = Math.abs(delta);
     const notionalRaw = rawQty * mark;
     if (notionalRaw < Math.max(minNotional, COPY_MIN_ADJUST_NOTIONAL)) continue; // 小偏差不追
-    const q = copyRoundStep(rawQty, step);
-    if (q <= 0 || q * mark < minNotional) continue;
     const reducing = aQty !== 0 && Math.sign(delta) !== Math.sign(aQty);
+    let q = copyRoundStepNearest(rawQty, step); // 按目标金额就近取整（见 copyRoundStepNearest 注释）
+    if (reducing) q = Math.min(q, Math.abs(aQty)); // 减仓最多减到持仓量，绝不超平
+    if (q <= 0 || q * mark < minNotional) continue;
     intents.push({
       symbol, side, kind: aQty === 0 ? 'OPEN' : 'ADJUST',
       orderSide: delta > 0 ? 'BUY' : 'SELL', qty: q, reduceOnly: reducing,
@@ -907,7 +916,7 @@ async function runCopyExecutor(env, username, opts) {
             const intended = it.orderSide === 'BUY' ? 1 : -1;
             if (!delta || Math.sign(delta) !== intended) { it.qty = 0; continue; } // 已对齐或已越过目标：跳过
             const f = filters[it.symbol] || {};
-            const rq = copyRoundStep(Math.abs(delta), f.stepSize || 0);
+            const rq = copyRoundStepNearest(Math.abs(delta), f.stepSize || 0); // 与计划同一口径就近取整，否则复核会把已按新规取整的量又砍回去
             const mark = marks[it.symbol] || 0;
             if (!rq || (mark && rq * mark < Math.max(f.minNotional || 5, COPY_MIN_ADJUST_NOTIONAL))) { it.qty = 0; continue; }
             if (rq < it.qty) it.qty = rq; // 差额被另一轮吃掉一部分，只下剩余量
