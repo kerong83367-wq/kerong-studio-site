@@ -6,16 +6,16 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-22T05:47:28.984564+08:00",
-  "equity": 524523.49810921,
-  "equityUpdatedAt": "2026-11-22T05:47:28.984564+08:00",
-  "marginBalance": 524523.49810921,
-  "marginBalanceUpdatedAt": "2026-11-22T05:47:28.984564+08:00",
+  "lastUpdatedAt": "2026-11-22T09:41:25.270359+08:00",
+  "equity": 536584.4522879,
+  "equityUpdatedAt": "2026-11-22T09:41:25.270358+08:00",
+  "marginBalance": 536584.4522879,
+  "marginBalanceUpdatedAt": "2026-11-22T09:41:25.270358+08:00",
   "equityStale": false,
-  "effectiveLeverage": 1.1016341833553764,
+  "effectiveLeverage": 1.055922485609439,
   "valuationComplete": true,
-  "notional": 577833.015490245,
-  "unrealizedPnl": -38076.72630206448,
+  "notional": 566591.5885992188,
+  "unrealizedPnl": -26835.29941103826,
   "positionCount": 1,
   "positions": [
     {
@@ -24,14 +24,14 @@
       "quantity": 727.875,
       "quantityUnit": "币",
       "entryPrice": 741.5508008767721,
-      "markPrice": 793.86297852,
+      "markPrice": 778.41880625,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 577833.015490245,
-      "unrealizedPnl": -38076.72630206448,
+      "notional": 566591.5885992188,
+      "unrealizedPnl": -26835.29941103826,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-21T21:47:34.711366743Z",
-      "updatedAt": "2026-11-22T05:47:28.983863+08:00"
+      "priceUpdatedAt": "2026-11-22T01:41:33.104126269Z",
+      "updatedAt": "2026-11-22T09:41:25.269615+08:00"
     }
   ],
   "events": [
@@ -3522,9 +3522,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-21T21:43:30.114Z",
+    "updatedAt": "2026-11-22T01:37:38.320Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-22T05:47:35.008486+08:00",
+  "fetchedAt": "2026-11-22T09:41:36.563030+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
