@@ -6,17 +6,17 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-26T04:36:03.591008+08:00",
-  "equity": 526821.02681643,
-  "equityUpdatedAt": "2026-11-26T04:36:03.591008+08:00",
-  "marginBalance": 526821.02681643,
-  "marginBalanceUpdatedAt": "2026-11-26T04:36:03.591008+08:00",
+  "lastUpdatedAt": "2026-11-26T11:03:51.683024+08:00",
+  "equity": 558424.70633312,
+  "equityUpdatedAt": "2026-11-26T11:03:51.683021+08:00",
+  "marginBalance": 558424.70633312,
+  "marginBalanceUpdatedAt": "2026-11-26T11:03:51.683021+08:00",
   "equityStale": false,
-  "effectiveLeverage": 1.9410060770687299,
+  "effectiveLeverage": 1.919305216529829,
   "valuationComplete": true,
-  "notional": 1022562.814578279,
-  "unrealizedPnl": 27075.83834894603,
-  "positionCount": 1,
+  "notional": 1071787.451904295,
+  "unrealizedPnl": 56240.88704776183,
+  "positionCount": 2,
   "positions": [
     {
       "symbol": "NVDAUSDT",
@@ -24,17 +24,47 @@
       "quantity": 6912.02,
       "quantityUnit": "币",
       "entryPrice": 144.0225833011671,
-      "markPrice": 147.93979395,
+      "markPrice": 151.82747074,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 1022562.814578279,
-      "unrealizedPnl": 27075.83834894603,
+      "notional": 1049434.514304295,
+      "unrealizedPnl": 53947.538074961834,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-25T20:36:14.425824024Z",
-      "updatedAt": "2026-11-26T04:36:03.590171+08:00"
+      "priceUpdatedAt": "2026-11-26T03:03:50.204099686Z",
+      "updatedAt": "2026-11-26T11:03:51.672005+08:00"
+    },
+    {
+      "symbol": "牛来USDT",
+      "side": "LONG",
+      "quantity": 480192.0,
+      "quantityUnit": "币",
+      "entryPrice": 0.0417741,
+      "markPrice": 0.04655,
+      "leverage": 0,
+      "margin": 0.0,
+      "notional": 22352.9376,
+      "unrealizedPnl": 2293.3489728,
+      "priceSource": "BINANCE 标记价",
+      "priceUpdatedAt": "2026-11-26T03:03:50.204099686Z",
+      "updatedAt": "2026-11-26T11:03:51.672311+08:00"
     }
   ],
   "events": [
+    {
+      "id": 4180,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "牛来USDT",
+      "side": "LONG",
+      "action": "OPEN_LONG",
+      "quantity": 480192.0,
+      "quantityUnit": "币",
+      "price": 0.0417741,
+      "beforeQuantity": 0.0,
+      "afterQuantity": 480192.0,
+      "sourceTime": "2026-11-26T07:56:29.796+08:00",
+      "detectedAt": "2026-11-26T07:58:42.166588+08:00"
+    },
     {
       "id": 4178,
       "traderId": 2,
@@ -1519,21 +1549,6 @@
       "afterQuantity": 0.0,
       "sourceTime": "2026-11-15T06:14:26.126+08:00",
       "detectedAt": "2026-11-15T06:16:35.746546+08:00"
-    },
-    {
-      "id": 3882,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "ZECUSDT",
-      "side": "SHORT",
-      "action": "REDUCE_SHORT",
-      "quantity": 71.569,
-      "quantityUnit": "币",
-      "price": 833.65971,
-      "beforeQuantity": 340.807,
-      "afterQuantity": 269.238,
-      "sourceTime": "2026-11-15T06:14:19.961+08:00",
-      "detectedAt": "2026-11-15T06:16:35.746489+08:00"
     }
   ],
   "history": {
@@ -3542,9 +3557,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-25T20:34:00.033Z",
+    "updatedAt": "2026-11-26T03:01:33.190Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-26T04:36:18.986005+08:00",
+  "fetchedAt": "2026-11-26T11:03:54.361315+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
