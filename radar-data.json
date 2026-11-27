@@ -6,35 +6,50 @@
   "enabled": true,
   "baselineReady": true,
   "status": "LIVE",
-  "lastUpdatedAt": "2026-11-27T21:11:50.437447+08:00",
-  "equity": 574849.83637073,
-  "equityUpdatedAt": "2026-11-27T21:11:50.437444+08:00",
-  "marginBalance": 574849.83637073,
-  "marginBalanceUpdatedAt": "2026-11-27T21:11:50.437444+08:00",
+  "lastUpdatedAt": "2026-11-28T05:57:28.255258+08:00",
+  "equity": 543916.09052445,
+  "equityUpdatedAt": "2026-11-28T05:57:28.255258+08:00",
+  "marginBalance": 543916.09052445,
+  "marginBalanceUpdatedAt": "2026-11-28T05:57:28.255258+08:00",
   "equityStale": false,
-  "effectiveLeverage": 1.8527850134293458,
+  "effectiveLeverage": 1.9638245387630882,
   "valuationComplete": true,
-  "notional": 1065073.1618000001,
-  "unrealizedPnl": 69586.18557066709,
+  "notional": 1068155.7656,
+  "unrealizedPnl": 42141.37257066703,
   "positionCount": 1,
   "positions": [
     {
       "symbol": "NVDAUSDT",
       "side": "LONG",
-      "quantity": 6912.02,
+      "quantity": 7119.14,
       "quantityUnit": "币",
-      "entryPrice": 144.0225833011671,
-      "markPrice": 154.09,
+      "entryPrice": 144.12055290798227,
+      "markPrice": 150.04,
       "leverage": 0,
       "margin": 0.0,
-      "notional": 1065073.1618000001,
-      "unrealizedPnl": 69586.18557066709,
+      "notional": 1068155.7656,
+      "unrealizedPnl": 42141.37257066703,
       "priceSource": "BINANCE 标记价",
-      "priceUpdatedAt": "2026-11-27T13:11:51.436003555Z",
-      "updatedAt": "2026-11-27T21:11:50.436554+08:00"
+      "priceUpdatedAt": "2026-11-27T21:57:33.349916299Z",
+      "updatedAt": "2026-11-28T05:57:28.254234+08:00"
     }
   ],
   "events": [
+    {
+      "id": 4212,
+      "traderId": 2,
+      "traderName": "熬鹰资本",
+      "symbol": "NVDAUSDT",
+      "side": "LONG",
+      "action": "ADD_LONG",
+      "quantity": 207.12,
+      "quantityUnit": "币",
+      "price": 147.39,
+      "beforeQuantity": 6912.02,
+      "afterQuantity": 7119.14,
+      "sourceTime": "2026-11-27T22:40:02.228+08:00",
+      "detectedAt": "2026-11-27T22:42:20.513873+08:00"
+    },
     {
       "id": 4185,
       "traderId": 2,
@@ -1519,21 +1534,6 @@
       "afterQuantity": 18.325000000000003,
       "sourceTime": "2026-11-15T07:21:39.143+08:00",
       "detectedAt": "2026-11-15T07:23:48.648636+08:00"
-    },
-    {
-      "id": 3884,
-      "traderId": 2,
-      "traderName": "熬鹰资本",
-      "symbol": "BTCUSDT",
-      "side": "LONG",
-      "action": "OPEN_LONG",
-      "quantity": 9.246,
-      "quantityUnit": "币",
-      "price": 63923.72274,
-      "beforeQuantity": 0.0,
-      "afterQuantity": 9.246,
-      "sourceTime": "2026-11-15T06:20:36.812+08:00",
-      "detectedAt": "2026-11-15T06:22:50.912243+08:00"
     }
   ],
   "history": {
@@ -3542,9 +3542,9 @@
     "status": "READY",
     "source": "OFFICIAL",
     "limited": true,
-    "updatedAt": "2026-11-27T13:11:12.087Z",
+    "updatedAt": "2026-11-27T21:52:51.294Z",
     "note": "历史仓位按平仓时间排序；盈亏与费用按各自口径展示，不重复加减。"
   },
-  "fetchedAt": "2026-11-27T21:11:55.138774+08:00",
+  "fetchedAt": "2026-11-28T05:57:37.145388+08:00",
   "source": "https://coin.911quant.com/api/public/traders/2"
 }
